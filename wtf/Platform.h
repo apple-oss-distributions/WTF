@@ -1054,8 +1054,4 @@
 #define TARGET_OS_IPHONE 0
 #endif
 
-#if PLATFORM(COCOA)
-#define HAVE_ACCELERATE 1
-#endif
-
 #endif /* WTF_Platform_h */
