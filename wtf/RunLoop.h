@@ -31,13 +31,12 @@
 #include <wtf/Deque.h>
 #include <wtf/Forward.h>
 #include <wtf/FunctionDispatcher.h>
-#include <wtf/Functional.h>
 #include <wtf/HashMap.h>
 #include <wtf/RetainPtr.h>
 #include <wtf/Threading.h>
 
 #if USE(GLIB)
-#include <wtf/gobject/GMainLoopSource.h>
+#include <wtf/glib/GMainLoopSource.h>
 #endif
 
 #if PLATFORM(EFL)
@@ -76,6 +75,7 @@ public:
         WTF_EXPORT_PRIVATE virtual ~TimerBase();
 
         void startRepeating(double repeatInterval) { start(repeatInterval, true); }
+        void startRepeating(std::chrono::milliseconds repeatInterval) { startRepeating(repeatInterval.count() * 0.001); }
         void startOneShot(double interval) { start(interval, false); }
 
         WTF_EXPORT_PRIVATE void stop();
@@ -157,12 +157,9 @@ private:
 #elif USE(GLIB)
 public:
     static gboolean queueWork(RunLoop*);
-    GMainLoop* innermostLoop();
-    void pushNestedMainLoop(GMainLoop*);
-    void popNestedMainLoop();
 private:
-    GRefPtr<GMainContext> m_runLoopContext;
-    Vector<GRefPtr<GMainLoop>> m_runLoopMainLoops;
+    GRefPtr<GMainContext> m_mainContext;
+    Vector<GRefPtr<GMainLoop>> m_mainLoops;
 #endif
 };
 

@@ -49,6 +49,7 @@ public:
         PositiveInfinite = 1 << 2,
         NegativeInfinite = 1 << 3,
         Indefinite = 1 << 4,
+        DoubleValue = 1 << 5,
     };
 
     MediaTime();
@@ -56,8 +57,10 @@ public:
     MediaTime(const MediaTime& rhs);
     ~MediaTime();
 
-    static MediaTime createWithFloat(float floatTime, int32_t timeScale = DefaultTimeScale);
-    static MediaTime createWithDouble(double doubleTime, int32_t timeScale = DefaultTimeScale);
+    static MediaTime createWithFloat(float floatTime);
+    static MediaTime createWithFloat(float floatTime, int32_t timeScale);
+    static MediaTime createWithDouble(double doubleTime);
+    static MediaTime createWithDouble(double doubleTime, int32_t timeScale);
 
     float toFloat() const;
     double toDouble() const;
@@ -67,6 +70,7 @@ public:
     MediaTime& operator-=(const MediaTime& rhs) { return *this = *this - rhs; }
     MediaTime operator+(const MediaTime& rhs) const;
     MediaTime operator-(const MediaTime& rhs) const;
+    MediaTime operator-() const;
     MediaTime operator*(int32_t) const;
     bool operator<(const MediaTime& rhs) const;
     bool operator>(const MediaTime& rhs) const;
@@ -74,6 +78,8 @@ public:
     bool operator==(const MediaTime& rhs) const;
     bool operator>=(const MediaTime& rhs) const;
     bool operator<=(const MediaTime& rhs) const;
+    bool operator!() const;
+    explicit operator bool() const;
 
     typedef enum {
         LessThan = -1,
@@ -89,6 +95,7 @@ public:
     bool isPositiveInfinite() const { return m_timeFlags & PositiveInfinite; }
     bool isNegativeInfinite() const { return m_timeFlags & NegativeInfinite; }
     bool isIndefinite() const { return m_timeFlags & Indefinite; }
+    bool hasDoubleValue() const { return m_timeFlags & DoubleValue; }
 
     static const MediaTime& zeroTime();
     static const MediaTime& invalidTime();
@@ -101,14 +108,24 @@ public:
 
     void dump(PrintStream& out) const;
 
+    // Make the following casts errors:
+    operator double() const = delete;
+    MediaTime(double) = delete;
+    operator int() const = delete;
+    MediaTime(int) = delete;
+
     friend WTF_EXPORT_PRIVATE MediaTime abs(const MediaTime& rhs);
-private:
+
     static const int32_t DefaultTimeScale = 10000000;
     static const int32_t MaximumTimeScale;
 
+private:
     void setTimeScale(int32_t);
 
-    int64_t m_timeValue;
+    union {
+        int64_t m_timeValue;
+        double m_timeValueAsDouble;
+    };
     int32_t m_timeScale;
     uint32_t m_timeFlags;
 };
