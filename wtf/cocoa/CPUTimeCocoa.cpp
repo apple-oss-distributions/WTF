@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 Apple Inc. All rights reserved.
+ * Copyright (C) 2017-2018 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -26,9 +26,13 @@
 #import "config.h"
 #import "CPUTime.h"
 
-#import <mach/mach_init.h>
+#import "MachSendRight.h"
+#import <mach/mach.h>
+#import <mach/mach_time.h>
 #import <mach/task.h>
 #import <mach/task_info.h>
+#import <mach/thread_info.h>
+#import <sys/time.h>
 
 namespace WTF {
 
@@ -65,6 +69,18 @@ std::optional<CPUTime> CPUTime::get()
     systemTime += timeValueToMicroseconds(taskInfoData.system_time);
 
     return CPUTime { MonotonicTime::now(), Seconds::fromMicroseconds(userTime), Seconds::fromMicroseconds(systemTime) };
+}
+
+Seconds CPUTime::forCurrentThread()
+{
+    mach_msg_type_number_t infoCount = THREAD_BASIC_INFO_COUNT;
+    thread_basic_info_data_t info;
+
+    auto threadPort = MachSendRight::adopt(mach_thread_self());
+    auto ret = thread_info(threadPort.sendRight(), THREAD_BASIC_INFO, reinterpret_cast<thread_info_t>(&info), &infoCount);
+    RELEASE_ASSERT(ret == KERN_SUCCESS);
+
+    return Seconds(info.user_time.seconds + info.system_time.seconds) + Seconds::fromMicroseconds(info.user_time.microseconds + info.system_time.microseconds);
 }
 
 }

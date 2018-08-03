@@ -1,7 +1,5 @@
 /*
- * Copyright (C) 2010, 2015 Apple Inc. All rights reserved.
- * Portions Copyright (c) 2010 Motorola Mobility, Inc.  All rights reserved.
- * Copyright (C) 2017 Sony Interactive Entertainment Inc.
+ * Copyright (C) 2018 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -25,37 +23,16 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#pragma once
+#if PLATFORM(COCOA)
 
-#include <Windows.h>
-#include <functional>
-#include <wtf/FunctionDispatcher.h>
-#include <wtf/RefPtr.h>
-#include <wtf/ThreadSafeRefCounted.h>
-#include <wtf/win/Win32Handle.h>
+#include <wtf/spi/darwin/XPCSPI.h>
 
 namespace WTF {
 
-class WorkQueue;
+WTF_EXPORT bool hasEntitlement(audit_token_t, const char* entitlement);
+WTF_EXPORT bool hasEntitlement(xpc_connection_t, const char* entitlement);
+WTF_EXPORT bool processHasEntitlement(const char* entitlement);
 
-class WorkItemContext : public ThreadSafeRefCounted<WorkItemContext> {
+} // namespace WTF
 
-public:
-    static Ref<WorkItemContext> create(HANDLE, HANDLE, Function<void()>&&, WorkQueue*);
-    virtual ~WorkItemContext();
-
-    Win32Handle& handle() { return m_handle; }
-    Win32Handle& waitHandle() { return m_waitHandle; }
-    Function<void()>& function() { return m_function; }
-    WorkQueue* queue() const { return m_queue.get(); }
-
-private:
-    WorkItemContext(HANDLE, HANDLE, Function<void()>&&, WorkQueue*);
-
-    Win32Handle m_handle;
-    Win32Handle m_waitHandle;
-    Function<void()> m_function;
-    RefPtr<WorkQueue> m_queue;
-};
-
-}
+#endif

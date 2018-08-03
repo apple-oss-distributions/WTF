@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 Apple Inc. All rights reserved.
+ * Copyright (C) 2018 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -24,66 +24,45 @@
  */
 
 #include "config.h"
-#include "StringMalloc.h"
+#include "ProcessPrivilege.h"
 
-#include <wtf/DataLog.h>
-#include <wtf/FastMalloc.h>
-#include <wtf/Gigacage.h>
-#include <wtf/RawPointer.h>
-
-#if !(defined(USE_SYSTEM_MALLOC) && USE_SYSTEM_MALLOC)
-#include <bmalloc/bmalloc.h>
-#endif
+#include <wtf/OptionSet.h>
 
 namespace WTF {
 
-#if defined(USE_SYSTEM_MALLOC) && USE_SYSTEM_MALLOC
-void* tryStringMalloc(size_t size)
+OptionSet<ProcessPrivilege> allPrivileges()
 {
-    return FastMalloc::tryMalloc(size);
+    return {
+        ProcessPrivilege::CanAccessRawCookies,
+        ProcessPrivilege::CanAccessCredentials,
+        ProcessPrivilege::CanCommunicateWithWindowServer,
+    };
 }
 
-void* stringMalloc(size_t size)
+static OptionSet<ProcessPrivilege>& processPrivileges()
 {
-    return fastMalloc(size);
+    static OptionSet<ProcessPrivilege> privileges = { };
+    return privileges;
 }
 
-void* stringRealloc(void* p, size_t size)
+void setProcessPrivileges(OptionSet<ProcessPrivilege> privileges)
 {
-    return fastRealloc(p, size);
+    processPrivileges() = privileges;
 }
 
-void stringFree(void* p)
+bool hasProcessPrivilege(ProcessPrivilege privilege)
 {
-    return fastFree(p);
-}
-#else
-void* tryStringMalloc(size_t size)
-{
-    return bmalloc::api::tryMalloc(size, bmalloc::HeapKind::StringGigacage);
+    return processPrivileges().contains(privilege);
 }
 
-void* stringMalloc(size_t size)
+void addProcessPrivilege(ProcessPrivilege privilege)
 {
-    return bmalloc::api::malloc(size, bmalloc::HeapKind::StringGigacage);
+    processPrivileges() |= privilege;
 }
 
-void* stringRealloc(void* p, size_t size)
+void removeProcessPrivilege(ProcessPrivilege privilege)
 {
-    return bmalloc::api::realloc(p, size, bmalloc::HeapKind::StringGigacage);
+    processPrivileges() = processPrivileges() - privilege;
 }
-
-void stringFree(void* p)
-{
-    if (!p)
-        return;
-    if (UNLIKELY(!Gigacage::isCaged(Gigacage::String, p))) {
-        dataLog("Trying to free string that is not caged: ", RawPointer(p), "\n");
-        RELEASE_ASSERT_NOT_REACHED();
-    }
-    bmalloc::api::free(p, bmalloc::HeapKind::StringGigacage);
-}
-#endif
 
 } // namespace WTF
-

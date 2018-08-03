@@ -1,6 +1,5 @@
 /*
- * Copyright (C) 2010, 2015 Apple Inc. All rights reserved.
- * Copyright (C) 2017 Sony Interactive Entertainment Inc.
+ * Copyright (C) 2014-2018 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -24,30 +23,43 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "config.h"
-#include "WorkItemContext.h"
+#pragma once
 
-#include <Windows.h>
-#include <wtf/Threading.h>
-#include <wtf/WorkQueue.h>
+#if PLATFORM(COCOA)
+
+#include <mach/mach_port.h>
 
 namespace WTF {
 
-WorkItemContext::WorkItemContext(HANDLE handle, HANDLE waitHandle, Function<void()>&& function, WorkQueue* queue)
-    : m_handle(handle)
-    , m_waitHandle(waitHandle)
-    , m_function(WTFMove(function))
-    , m_queue(queue)
-{
+class MachSendRight {
+public:
+    WTF_EXPORT_PRIVATE static MachSendRight adopt(mach_port_t);
+    WTF_EXPORT_PRIVATE static MachSendRight create(mach_port_t);
+
+    MachSendRight() = default;
+    WTF_EXPORT_PRIVATE MachSendRight(MachSendRight&&);
+    WTF_EXPORT_PRIVATE ~MachSendRight();
+
+    WTF_EXPORT_PRIVATE MachSendRight& operator=(MachSendRight&&);
+
+    explicit operator bool() const { return m_port != MACH_PORT_NULL; }
+
+    mach_port_t sendRight() const { return m_port; }
+
+    WTF_EXPORT_PRIVATE MachSendRight copySendRight() const;
+    WTF_EXPORT_PRIVATE mach_port_t leakSendRight() WARN_UNUSED_RETURN;
+
+private:
+    explicit MachSendRight(mach_port_t);
+
+    mach_port_t m_port { MACH_PORT_NULL };
+};
+
+WTF_EXPORT_PRIVATE void deallocateSendRightSafely(mach_port_t);
+
 }
 
-Ref<WorkItemContext> WorkItemContext::create(HANDLE handle, HANDLE waitHandle, Function<void()>&& function, WorkQueue* queue)
-{
-    return adoptRef(*new WorkItemContext(handle, waitHandle, WTFMove(function), queue));
-}
+using WTF::MachSendRight;
+using WTF::deallocateSendRightSafely;
 
-WorkItemContext::~WorkItemContext()
-{
-}
-
-} // namespace WTF
+#endif

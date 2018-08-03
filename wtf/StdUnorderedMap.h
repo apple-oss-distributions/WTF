@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 Apple Inc. All rights reserved.
+ * Copyright (C) 2018 Yusuke Suzuki <utatane.tea@gmail.com>.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -20,18 +20,19 @@
  * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
  * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 #pragma once
 
-#include <wtf/Forward.h>
-#include <wtf/text/StringMalloc.h>
+#include <unordered_map>
+#include <wtf/FastMalloc.h>
 
 namespace WTF {
 
-template<typename T, size_t inlineCapacity = 0, typename OverflowHandler = CrashOnOverflow, size_t minCapacity = 16> using StringVector = Vector<T, inlineCapacity, OverflowHandler, minCapacity, StringMalloc>;
+template<typename Key, typename Value, typename Hash = std::hash<Key>, typename Predicate = std::equal_to<Key>, typename Allocator = FastAllocator<std::pair<const Key, Value>>>
+using StdUnorderedMap = std::unordered_map<Key, Value, Hash, Predicate, Allocator>;
 
 } // namespace WTF
 
-using WTF::StringVector;
+using WTF::StdUnorderedMap;

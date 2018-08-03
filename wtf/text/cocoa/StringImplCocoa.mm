@@ -21,14 +21,13 @@
 #import "config.h"
 #import "StringImpl.h"
 
-#import "ObjcRuntimeExtras.h"
 #import "RetainPtr.h"
 
 namespace WTF {
 
 StringImpl::operator NSString *()
 {
-    return (NSString *)createCFString().autorelease();
+    return createCFString().bridgingAutorelease();
 }
 
 }
