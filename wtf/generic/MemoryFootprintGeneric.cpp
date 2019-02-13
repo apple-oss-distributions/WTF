@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 Apple Inc. All rights reserved.
+ * Copyright (C) 2018 Sony Interactive Entertainment Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -23,19 +23,14 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#pragma once
+#include "config.h"
+#include <wtf/MemoryFootprint.h>
 
-#if USE(APPLE_INTERNAL_SDK)
+namespace WTF {
 
-#include <objc/objc-internal.h>
+size_t memoryFootprint()
+{
+    return 0;
+}
 
-#else
-
-WTF_EXTERN_C_BEGIN
-
-void* objc_autoreleasePoolPush(void);
-void objc_autoreleasePoolPop(void* context);
-
-WTF_EXTERN_C_END
-
-#endif
+} // namespace WTF

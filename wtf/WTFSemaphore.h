@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2016 Apple Inc. All rights reserved.
+ * Copyright (C) 2018 Yusuke Suzuki <utatane.tea@gmail.com>.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -20,23 +20,62 @@
  * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
  * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#import <Foundation/NSMapTable.h>
+#pragma once
 
-#if PLATFORM(IOS) && __IPHONE_OS_VERSION_MAX_ALLOWED < 120000
+#include <wtf/Condition.h>
+#include <wtf/Lock.h>
+#include <wtf/Noncopyable.h>
 
-#if USE(APPLE_INTERNAL_SDK)
-#import <Foundation/NSMapTablePriv.h>
-#endif
+namespace WTF {
 
-WTF_EXTERN_C_BEGIN
+class Semaphore {
+    WTF_MAKE_NONCOPYABLE(Semaphore);
+    WTF_MAKE_FAST_ALLOCATED;
+public:
+    constexpr Semaphore(unsigned value)
+        : m_value(value)
+    {
+    }
 
-void *NSMapGet(NSMapTable *, const void *key);
-void NSMapInsert(NSMapTable *, const void *key, const void *value);
-void NSMapRemove(NSMapTable *, const void *key);
+    void signal()
+    {
+        auto locker = holdLock(m_lock);
+        m_value++;
+        m_condition.notifyOne();
+    }
 
-WTF_EXTERN_C_END
+    bool waitUntil(const TimeWithDynamicClockType& timeout)
+    {
+        auto locker = holdLock(m_lock);
+        bool satisfied = m_condition.waitUntil(m_lock, timeout,
+            [&] {
+                return m_value;
+            });
+        if (satisfied)
+            --m_value;
+        return satisfied;
+    }
 
-#endif
+    bool waitFor(Seconds relativeTimeout)
+    {
+        return waitUntil(MonotonicTime::now() + relativeTimeout);
+    }
+
+    void wait()
+    {
+        waitUntil(ParkingLot::Time::infinity());
+    }
+
+private:
+    unsigned m_value { 0 };
+    Lock m_lock;
+    Condition m_condition;
+};
+
+
+} // namespace WTF
+
+using WTF::Semaphore;

@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 1999 Lars Knoll (knoll@kde.org)
- * Copyright (C) 2005-2017 Apple Inc. All rights reserved.
+ * Copyright (C) 2005-2018 Apple Inc. All rights reserved.
  * Copyright (C) 2009 Google Inc. All rights reserved.
  *
  * This library is free software; you can redistribute it and/or
@@ -20,8 +20,7 @@
  *
  */
 
-#ifndef StringImpl_h
-#define StringImpl_h
+#pragma once
 
 #include <limits.h>
 #include <unicode/ustring.h>
@@ -130,6 +129,9 @@ struct StringStats {
 
 class StringImplShape {
     WTF_MAKE_NONCOPYABLE(StringImplShape);
+public:
+    static constexpr unsigned MaxLength = std::numeric_limits<int32_t>::max();
+
 protected:
     StringImplShape(unsigned refCount, unsigned length, const LChar*, unsigned hashAndFlags);
     StringImplShape(unsigned refCount, unsigned length, const UChar*, unsigned hashAndFlags);
@@ -166,6 +168,7 @@ class StringImpl : private StringImplShape {
     friend class PrivateSymbolImpl;
     friend class RegisteredSymbolImpl;
     friend class SymbolImpl;
+    friend class ExternalStringImpl;
 
     friend struct WTF::CStringTranslator;
     friend struct WTF::HashAndUTF8CharactersTranslator;
@@ -177,7 +180,9 @@ class StringImpl : private StringImplShape {
     template<typename> friend struct WTF::HashAndCharactersTranslator;
 
 public:
-    enum BufferOwnership { BufferInternal, BufferOwned, BufferSubstring };
+    enum BufferOwnership { BufferInternal, BufferOwned, BufferSubstring, BufferExternal };
+
+    static constexpr unsigned MaxLength = StringImplShape::MaxLength;
 
     // The bottom 6 bits in the hash are flags.
     static constexpr const unsigned s_flagCount = 6;
@@ -249,6 +254,8 @@ public:
     // the originalString can't be used after this function.
     static Ref<StringImpl> reallocate(Ref<StringImpl>&& originalString, unsigned length, LChar*& data);
     static Ref<StringImpl> reallocate(Ref<StringImpl>&& originalString, unsigned length, UChar*& data);
+    static Expected<Ref<StringImpl>, UTF8ConversionError> tryReallocate(Ref<StringImpl>&& originalString, unsigned length, LChar*& data);
+    static Expected<Ref<StringImpl>, UTF8ConversionError> tryReallocate(Ref<StringImpl>&& originalString, unsigned length, UChar*& data);
 
     static unsigned flagsOffset() { return OBJECT_OFFSETOF(StringImpl, m_hashAndFlags); }
     static unsigned flagIs8Bit() { return s_hashFlag8BitBuffer; }
@@ -281,6 +288,8 @@ public:
     bool isSymbol() const { return m_hashAndFlags & s_hashFlagStringKindIsSymbol; }
     bool isAtomic() const { return m_hashAndFlags & s_hashFlagStringKindIsAtomic; }
     void setIsAtomic(bool);
+    
+    bool isExternal() const { return bufferOwnership() == BufferExternal; }
 
 #if STRING_STATS
     bool isSubString() const { return bufferOwnership() == BufferSubstring; }
@@ -370,7 +379,7 @@ public:
     // its own copy of the string.
     Ref<StringImpl> isolatedCopy() const;
 
-    WTF_EXPORT_PRIVATE Ref<StringImpl> substring(unsigned position, unsigned length = std::numeric_limits<unsigned>::max());
+    WTF_EXPORT_PRIVATE Ref<StringImpl> substring(unsigned position, unsigned length = MaxLength);
 
     UChar at(unsigned) const;
     UChar operator[](unsigned i) const { return at(i); }
@@ -428,8 +437,8 @@ public:
     WTF_EXPORT_PRIVATE size_t findIgnoringASCIICase(const StringImpl*) const;
     WTF_EXPORT_PRIVATE size_t findIgnoringASCIICase(const StringImpl*, unsigned startOffset) const;
 
-    WTF_EXPORT_PRIVATE size_t reverseFind(UChar, unsigned index = std::numeric_limits<unsigned>::max());
-    WTF_EXPORT_PRIVATE size_t reverseFind(StringImpl*, unsigned index = std::numeric_limits<unsigned>::max());
+    WTF_EXPORT_PRIVATE size_t reverseFind(UChar, unsigned index = MaxLength);
+    WTF_EXPORT_PRIVATE size_t reverseFind(StringImpl*, unsigned index = MaxLength);
 
     WTF_EXPORT_PRIVATE bool startsWith(const StringImpl*) const;
     WTF_EXPORT_PRIVATE bool startsWith(const StringImpl&) const;
@@ -486,6 +495,7 @@ protected:
 
 private:
     template<typename> static size_t allocationSize(Checked<size_t> tailElementCount);
+    template<typename> static size_t maxInternalLength();
     template<typename> static size_t tailOffset();
 
     bool requiresCopy() const;
@@ -503,7 +513,7 @@ private:
     template<typename CharacterType> static Ref<StringImpl> constructInternal(StringImpl&, unsigned);
     template<typename CharacterType> static Ref<StringImpl> createUninitializedInternal(unsigned, CharacterType*&);
     template<typename CharacterType> static Ref<StringImpl> createUninitializedInternalNonEmpty(unsigned, CharacterType*&);
-    template<typename CharacterType> static Ref<StringImpl> reallocateInternal(Ref<StringImpl>&&, unsigned, CharacterType*&);
+    template<typename CharacterType> static Expected<Ref<StringImpl>, UTF8ConversionError> reallocateInternal(Ref<StringImpl>&&, unsigned, CharacterType*&);
     template<typename CharacterType> static Ref<StringImpl> createInternal(const CharacterType*, unsigned);
     WTF_EXPORT_PRIVATE NEVER_INLINE unsigned hashSlowCase() const;
 
@@ -560,10 +570,10 @@ template<unsigned length> bool equalLettersIgnoringASCIICase(const StringImpl*, 
 size_t find(const LChar*, unsigned length, CodeUnitMatchFunction, unsigned index = 0);
 size_t find(const UChar*, unsigned length, CodeUnitMatchFunction, unsigned index = 0);
 
-template<typename CharacterType> size_t reverseFindLineTerminator(const CharacterType*, unsigned length, unsigned index = std::numeric_limits<unsigned>::max());
-template<typename CharacterType> size_t reverseFind(const CharacterType*, unsigned length, CharacterType matchCharacter, unsigned index = std::numeric_limits<unsigned>::max());
-size_t reverseFind(const UChar*, unsigned length, LChar matchCharacter, unsigned index = std::numeric_limits<unsigned>::max());
-size_t reverseFind(const LChar*, unsigned length, UChar matchCharacter, unsigned index = std::numeric_limits<unsigned>::max());
+template<typename CharacterType> size_t reverseFindLineTerminator(const CharacterType*, unsigned length, unsigned index = StringImpl::MaxLength);
+template<typename CharacterType> size_t reverseFind(const CharacterType*, unsigned length, CharacterType matchCharacter, unsigned index = StringImpl::MaxLength);
+size_t reverseFind(const UChar*, unsigned length, LChar matchCharacter, unsigned index = StringImpl::MaxLength);
+size_t reverseFind(const LChar*, unsigned length, UChar matchCharacter, unsigned index = StringImpl::MaxLength);
 
 template<size_t inlineCapacity> bool equalIgnoringNullity(const Vector<UChar, inlineCapacity>&, StringImpl*);
 
@@ -746,7 +756,7 @@ template<typename CharacterType> inline unsigned lengthOfNullTerminatedString(co
     while (string[length])
         ++length;
 
-    RELEASE_ASSERT(length < std::numeric_limits<unsigned>::max());
+    RELEASE_ASSERT(length < StringImpl::MaxLength);
     return static_cast<unsigned>(length);
 }
 
@@ -766,7 +776,7 @@ inline StringImplShape::StringImplShape(unsigned refCount, unsigned length, cons
 {
 }
 
-template<unsigned characterCount> inline constexpr StringImplShape::StringImplShape(unsigned refCount, unsigned length, const char (&characters)[characterCount], unsigned hashAndFlags, ConstructWithConstExprTag)
+template<unsigned characterCount> constexpr StringImplShape::StringImplShape(unsigned refCount, unsigned length, const char (&characters)[characterCount], unsigned hashAndFlags, ConstructWithConstExprTag)
     : m_refCount(refCount)
     , m_length(length)
     , m_data8Char(characters)
@@ -774,7 +784,7 @@ template<unsigned characterCount> inline constexpr StringImplShape::StringImplSh
 {
 }
 
-template<unsigned characterCount> inline constexpr StringImplShape::StringImplShape(unsigned refCount, unsigned length, const char16_t (&characters)[characterCount], unsigned hashAndFlags, ConstructWithConstExprTag)
+template<unsigned characterCount> constexpr StringImplShape::StringImplShape(unsigned refCount, unsigned length, const char16_t (&characters)[characterCount], unsigned hashAndFlags, ConstructWithConstExprTag)
     : m_refCount(refCount)
     , m_length(length)
     , m_data16Char(characters)
@@ -945,7 +955,7 @@ template<typename CharacterType> ALWAYS_INLINE RefPtr<StringImpl> StringImpl::tr
         return empty();
     }
 
-    if (length > ((std::numeric_limits<unsigned>::max() - sizeof(StringImpl)) / sizeof(CharacterType))) {
+    if (length > maxInternalLength<CharacterType>()) {
         output = nullptr;
         return nullptr;
     }
@@ -964,7 +974,7 @@ inline Ref<StringImpl> StringImpl::adopt(Vector<CharacterType, inlineCapacity, O
 {
     if (size_t size = vector.size()) {
         ASSERT(vector.data());
-        if (size > std::numeric_limits<unsigned>::max())
+        if (size > MaxLength)
             CRASH();
         return adoptRef(*new StringImpl(vector.releaseBuffer(), size));
     }
@@ -1103,6 +1113,13 @@ template<typename T> inline size_t StringImpl::allocationSize(Checked<size_t> ta
     return (tailOffset<T>() + tailElementCount * sizeof(T)).unsafeGet();
 }
 
+template<typename CharacterType>
+inline size_t StringImpl::maxInternalLength()
+{
+    // In order to not overflow the unsigned length, the check for (std::numeric_limits<unsigned>::max() - sizeof(StringImpl)) is needed when sizeof(CharacterType) == 2.
+    return std::min(static_cast<size_t>(MaxLength), (std::numeric_limits<unsigned>::max() - sizeof(StringImpl)) / sizeof(CharacterType));
+}
+
 template<typename T> inline size_t StringImpl::tailOffset()
 {
 #if COMPILER(MSVC)
@@ -1152,13 +1169,13 @@ inline void StringImpl::assertHashIsCorrect() const
     ASSERT(existingHash() == StringHasher::computeHashAndMaskTop8Bits(characters8(), length()));
 }
 
-template<unsigned characterCount> inline constexpr StringImpl::StaticStringImpl::StaticStringImpl(const char (&characters)[characterCount], StringKind stringKind)
+template<unsigned characterCount> constexpr StringImpl::StaticStringImpl::StaticStringImpl(const char (&characters)[characterCount], StringKind stringKind)
     : StringImplShape(s_refCountFlagIsStaticString, characterCount - 1, characters,
         s_hashFlag8BitBuffer | s_hashFlagDidReportCost | stringKind | BufferInternal | (StringHasher::computeLiteralHashAndMaskTop8Bits(characters) << s_flagCount), ConstructWithConstExpr)
 {
 }
 
-template<unsigned characterCount> inline constexpr StringImpl::StaticStringImpl::StaticStringImpl(const char16_t (&characters)[characterCount], StringKind stringKind)
+template<unsigned characterCount> constexpr StringImpl::StaticStringImpl::StaticStringImpl(const char16_t (&characters)[characterCount], StringKind stringKind)
     : StringImplShape(s_refCountFlagIsStaticString, characterCount - 1, characters,
         s_hashFlagDidReportCost | stringKind | BufferInternal | (StringHasher::computeLiteralHashAndMaskTop8Bits(characters) << s_flagCount), ConstructWithConstExpr)
 {
@@ -1209,5 +1226,3 @@ template<unsigned length> inline bool equalLettersIgnoringASCIICase(const String
 using WTF::StaticStringImpl;
 using WTF::StringImpl;
 using WTF::equal;
-
-#endif

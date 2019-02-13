@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014 Apple Inc. All rights reserved.
+ * Copyright (C) 2018 Yusuke Suzuki <yusukesuzuki@slowstart.org>.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -20,39 +20,31 @@
  * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
  * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "config.h"
-#include "FastMalloc.h"
+#pragma once
 
-#define EXPORT __attribute__((visibility("default")))
+#include <type_traits>
+#include <wtf/Platform.h>
+#include <wtf/StdLibExtras.h>
 
-extern "C" {
+namespace WTF {
 
-EXPORT void* mbmalloc(size_t);
-EXPORT void mbfree(void*, size_t);
-EXPORT void* mbrealloc(void*, size_t, size_t);
-EXPORT void mbscavenge();
-    
-void* mbmalloc(size_t size)
+template<typename IntegralType>
+inline IntegralType unalignedLoad(const void* pointer)
 {
-    return WTF::fastMalloc(size);
+    static_assert(std::is_integral<IntegralType>::value || std::is_pointer<IntegralType>::value, "");
+    IntegralType result { };
+    memcpy(&result, pointer, sizeof(IntegralType));
+    return result;
 }
 
-void mbfree(void* p, size_t)
+template<typename IntegralType>
+inline void unalignedStore(void* pointer, IntegralType value)
 {
-    return WTF::fastFree(p);
+    static_assert(std::is_integral<IntegralType>::value || std::is_pointer<IntegralType>::value, "");
+    memcpy(pointer, &value, sizeof(IntegralType));
 }
 
-void* mbrealloc(void* p, size_t, size_t size)
-{
-    return WTF::fastRealloc(p, size);
-}
-
-void mbscavenge()
-{
-    WTF::releaseFastMallocFreeMemory();
-}
-    
-} // extern "C"
+} // namespace WTF
