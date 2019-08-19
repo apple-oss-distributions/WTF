@@ -1,6 +1,283 @@
-2019-08-06  Kocsen Chung  <kocsen_chung@apple.com>
+2019-08-19  Alan Coon  <alancoon@apple.com>
 
-        Cherry-pick r248018. rdar://problem/54017893
+        Cherry-pick r248852. rdar://problem/54454547
+
+    Unreviewed build fix for macOS 10.14 after r248832.
+    
+    * wtf/Platform.h:
+    
+    
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@248852 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2019-08-19  Per Arne Vollan  <pvollan@apple.com>
+
+            Unreviewed build fix for macOS 10.14 after r248832.
+
+            * wtf/Platform.h:
+
+2019-08-18  Babak Shafiei  <bshafiei@apple.com>
+
+        Cherry-pick r248832. rdar://problem/54454547
+
+    [Mac] Use the PID of the WebContent process when issuing local file read sandbox extensions
+    https://bugs.webkit.org/show_bug.cgi?id=200543
+    <rdar://problem/49394015>
+    Source/WebKit:
+    
+    Reviewed by Brent Fulgham.
+    
+    Adopt SPI to issue a process-specific sandbox extension for local file read, passing it the process
+    identifier of the WebContent process.
+    
+    * Shared/Cocoa/SandboxExtensionCocoa.mm:
+    (WebKit::SandboxExtensionImpl::sandboxExtensionForType):
+    (WebKit::SandboxExtension::createHandleForReadByPid):
+    * Shared/SandboxExtension.h:
+    * UIProcess/Cocoa/WebPageProxyCocoa.mm:
+    (WebKit::WebPageProxy::createSandboxExtensionsIfNeeded):
+    * UIProcess/WebPageProxy.cpp:
+    (WebKit::WebPageProxy::maybeInitializeSandboxExtensionHandle):
+    (WebKit::WebPageProxy::loadFile):
+    
+    Source/WTF:
+    
+    Reviewed by Brent Fulgham.
+    
+    Add new SPI.
+    
+    * wtf/Platform.h:
+    * wtf/spi/darwin/SandboxSPI.h:
+    
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@248832 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2019-08-18  Per Arne Vollan  <pvollan@apple.com>
+
+            [Mac] Use the PID of the WebContent process when issuing local file read sandbox extensions
+            https://bugs.webkit.org/show_bug.cgi?id=200543
+            <rdar://problem/49394015>
+
+            Reviewed by Brent Fulgham.
+
+            Add new SPI.
+
+            * wtf/Platform.h:
+            * wtf/spi/darwin/SandboxSPI.h:
+
+2019-08-18  Babak Shafiei  <bshafiei@apple.com>
+
+        Cherry-pick r248823. rdar://problem/54454713
+
+    Source/WebKit:
+    Use bundlePath SPI in AccessibilitySupport for WebProcessLoader
+    https://bugs.webkit.org/show_bug.cgi?id=200367
+    
+    Patch by Eric Liang <ericliang@apple.com> on 2019-08-17
+    Reviewed by Darin Adler.
+    
+    * Platform/spi/ios/AccessibilitySupportSPI.h:
+    * WebProcess/cocoa/WebProcessCocoa.mm:
+    (WebKit::accessibilityWebProcessLoaderBundlePath):
+    (WebKit::registerWithAccessibility):
+    
+    Source/WTF:
+    Added HAVE_ACCESSIBILITY_BUNDLES_PATH
+    https://bugs.webkit.org/show_bug.cgi?id=200367
+    
+    Patch by Eric Liang <ericliang@apple.com> on 2019-08-17
+    Reviewed by Darin Adler.
+    
+    * wtf/Platform.h:
+    
+    Tools:
+    Tested that accessibility WebProcessLoader bundle is loaded for the correct path.
+    https://bugs.webkit.org/show_bug.cgi?id=200367
+    
+    Patch by Eric Liang <ericliang@apple.com> on 2019-08-17
+    Reviewed by Darin Adler.
+    
+    Added AccessibilityTestPlugin on the web process to report whether a bundle is loaded and its path, so that it can be tested on WKContentView.
+    
+    * TestWebKitAPI/TestWebKitAPI.xcodeproj/project.pbxproj:
+    * TestWebKitAPI/Tests/WebKitCocoa/AccessibilityTestPlugin.mm: Added.
+    (-[AccessibilityTestPlugin webProcessPlugIn:didCreateBrowserContextController:]):
+    (-[AccessibilityTestPlugin checkAccessibilityWebProcessLoaderBundleIsLoaded:]):
+    * TestWebKitAPI/Tests/WebKitCocoa/AccessibilityTestSupportProtocol.h: Added.
+    * TestWebKitAPI/Tests/ios/AccessibilityTestsIOS.mm:
+    (TestWebKitAPI::TEST):
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@248823 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2019-08-17  Eric Liang  <ericliang@apple.com>
+
+            Added HAVE_ACCESSIBILITY_BUNDLES_PATH
+            https://bugs.webkit.org/show_bug.cgi?id=200367
+
+            Reviewed by Darin Adler.
+
+            * wtf/Platform.h:
+
+2019-08-15  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r248731. rdar://problem/54360857
+
+    Unreviewed, rolling out r248440.
+    https://bugs.webkit.org/show_bug.cgi?id=200772
+    
+    Introduced regressions related to loading of local files.
+    (Requested by perarne on #webkit).
+    
+    Reverted changeset:
+    
+    "[Mac] Use the PID of the WebContent process when issuing
+    local file read sandbox extensions"
+    https://bugs.webkit.org/show_bug.cgi?id=200543
+    https://trac.webkit.org/changeset/248440
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@248731 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2019-08-15  Commit Queue  <commit-queue@webkit.org>
+
+            Unreviewed, rolling out r248440.
+            https://bugs.webkit.org/show_bug.cgi?id=200772
+
+            Introduced regressions related to loading of local files.
+            (Requested by perarne on #webkit).
+
+            Reverted changeset:
+
+            "[Mac] Use the PID of the WebContent process when issuing
+            local file read sandbox extensions"
+            https://bugs.webkit.org/show_bug.cgi?id=200543
+            https://trac.webkit.org/changeset/248440
+
+2019-08-13  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r248440. rdar://problem/54237795
+
+    [Mac] Use the PID of the WebContent process when issuing local file read sandbox extensions
+    https://bugs.webkit.org/show_bug.cgi?id=200543
+    Source/WebKit:
+    
+    Reviewed by Brent Fulgham.
+    
+    Adopt SPI to issue a process-specific sandbox extension for local file read, passing it the process
+    identifier of the WebContent process.
+    
+    * Shared/Cocoa/SandboxExtensionCocoa.mm:
+    (WebKit::SandboxExtensionImpl::sandboxExtensionForType):
+    (WebKit::SandboxExtension::createHandleForReadByPid):
+    * Shared/SandboxExtension.h:
+    * UIProcess/WebPageProxy.cpp:
+    (WebKit::WebPageProxy::maybeInitializeSandboxExtensionHandle):
+    
+    Source/WTF:
+    
+    <rdar://problem/49394015>
+    
+    Reviewed by Brent Fulgham.
+    
+    Add new SPI.
+    
+    * wtf/Platform.h:
+    * wtf/spi/darwin/SandboxSPI.h:
+    
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@248440 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2019-08-08  Per Arne Vollan  <pvollan@apple.com>
+
+            [Mac] Use the PID of the WebContent process when issuing local file read sandbox extensions
+            https://bugs.webkit.org/show_bug.cgi?id=200543
+            <rdar://problem/49394015>
+
+            Reviewed by Brent Fulgham.
+
+            Add new SPI.
+
+            * wtf/Platform.h:
+            * wtf/spi/darwin/SandboxSPI.h:
+
+2019-08-06  Alan Coon  <alancoon@apple.com>
+
+        Apply patch. rdar://problem/53992160
+
+    2019-08-06  Per Arne Vollan  <pvollan@apple.com>
+
+            [Win] Fix AppleWin build
+            https://bugs.webkit.org/show_bug.cgi?id=200414
+
+            Reviewed by Brent Fulgham.
+
+            * wtf/CMakeLists.txt:
+            * wtf/PlatformPlayStation.cmake:
+
+2019-07-31  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r248071. rdar://problem/53789003
+
+    Use CTFontCreateForCharactersWithLanguageAndOption if available instead of CTFontCreateForCharactersWithLanguage
+    https://bugs.webkit.org/show_bug.cgi?id=200241
+    
+    Source/WebCore:
+    
+    Reviewed by Myles C. Maxfield.
+    
+    We can use CTFontCreateForCharactersWithLanguageAndOption instead of CTFontCreateForCharactersWithLanguage
+    as it allows setting more easily the fallback option.
+    This allows us to never fallback to user installed fonts.
+    In such a case, we no longer need to wrap the fonts to change the fallback option.
+    We also prewarm the fonts with the same SPI and use system fallback as the default value.
+    
+    Covered by existing tests.
+    
+    * platform/graphics/cocoa/FontCacheCoreText.cpp:
+    (WebCore::preparePlatformFont):
+    (WebCore::lookupFallbackFont):
+    (WebCore::FontCache::systemFallbackForCharacters):
+    (WebCore::FontCache::prewarm):
+    (WebCore::fontFamiliesForPrewarming):
+    
+    Source/WebCore/PAL:
+    
+    Reviewed by Myles C. Maxfield.
+    
+    Add new SPI.
+    
+    * pal/spi/cocoa/CoreTextSPI.h:
+    
+    Source/WTF:
+    
+    Reviewed by Myles C. Maxfield.
+    
+    * wtf/Platform.h: Add macro to enable/disable new SPI.
+    
+    LayoutTests:
+    
+    We update the tests to flush font caches as otherwise some debug asserts would be hit.
+    This is due to changing the user installed font runtime flag while browsing which is not a typical situation.
+    
+    Reviewed by Myles C. Maxfield.
+    
+    * fast/text/user-installed-fonts/extended-character-with-user-font.html:
+    * fast/text/user-installed-fonts/extended-character.html:
+    
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@248071 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2019-07-31  Youenn Fablet  <youenn@apple.com>
+
+            Use CTFontCreateForCharactersWithLanguageAndOption if available instead of CTFontCreateForCharactersWithLanguage
+            https://bugs.webkit.org/show_bug.cgi?id=200241
+
+            Reviewed by Myles C. Maxfield.
+
+            * wtf/Platform.h: Add macro to enable/disable new SPI.
+
+2019-07-31  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r248018. rdar://problem/53764057
 
     REGRESSION(r241288): Text on Yahoo Japan mobile looks too bold
     https://bugs.webkit.org/show_bug.cgi?id=200065
@@ -46,9 +323,70 @@
 
             * wtf/Platform.h:
 
-2019-08-06  Kocsen Chung  <kocsen_chung@apple.com>
+2019-07-29  Alan Coon  <alancoon@apple.com>
 
-        Cherry-pick r247837. rdar://problem/53973599
+        Cherry-pick r247673. rdar://problem/53449723
+
+    Speed up HashTable decoding by reserving capacity and avoiding rehashing
+    https://bugs.webkit.org/show_bug.cgi?id=199982
+    
+    Reviewed by Saam Barati.
+    
+    Source/WebKit:
+    
+    Use HashMap::reserveInitialCapacity() in the HashMap IPC decoder for
+    performance. I measured a ~35% improvement when decoding a very large
+    HashMap of Strings (~160k entries) in the context of the
+    StorageManager::GetValues IPC.
+    
+    * Platform/IPC/ArgumentCoders.h:
+    * Shared/API/c/WKDictionary.cpp:
+    (WKDictionaryCreate):
+    
+    Source/WTF:
+    
+    Introduce reserveInitialCapacity() on HashMap to reserve capacity on a
+    HashMap and cut down on rehashing cost when possible.
+    
+    * wtf/HashMap.h:
+    * wtf/HashTable.h:
+    (WTF::HashTable::reserveInitialCapacity):
+    
+    * wtf/persistence/PersistentCoders.h:
+    Use HashMap::reserveInitialCapacity() in the HashMap persistent decoder for
+    performance.
+    
+    Tools:
+    
+    Add API test coverage.
+    
+    * TestWebKitAPI/Tests/WTF/HashMap.cpp:
+    (TestWebKitAPI::TEST):
+    
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@247673 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2019-07-20  Chris Dumez  <cdumez@apple.com>
+
+            Speed up HashTable decoding by reserving capacity and avoiding rehashing
+            https://bugs.webkit.org/show_bug.cgi?id=199982
+
+            Reviewed by Saam Barati.
+
+            Introduce reserveInitialCapacity() on HashMap to reserve capacity on a
+            HashMap and cut down on rehashing cost when possible.
+
+            * wtf/HashMap.h:
+            * wtf/HashTable.h:
+            (WTF::HashTable::reserveInitialCapacity):
+
+            * wtf/persistence/PersistentCoders.h:
+            Use HashMap::reserveInitialCapacity() in the HashMap persistent decoder for
+            performance.
+
+2019-07-29  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r247837. rdar://problem/53648220
 
     Add helper for ignoring deprecated implementation warnings
     https://bugs.webkit.org/show_bug.cgi?id=200135
@@ -175,6 +513,172 @@
             is IGNORE_WARNINGS_BEGIN("deprecated-implementations")
 
             * wtf/Compiler.h:
+
+2019-07-29  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r247714. rdar://problem/53647616
+
+    [bmalloc] Each IsoPage gets 1MB VA because VMHeap::tryAllocateLargeChunk rounds up
+    https://bugs.webkit.org/show_bug.cgi?id=200024
+    
+    Reviewed by Saam Barati.
+    
+    Source/bmalloc:
+    
+    When we allocate IsoHeap's page, we reused VMHeap::tryAllocateLargeChunk. However, this function is originally designed
+    to be used for Large allocation in bmalloc (e.g. allocating Chunk in bmalloc). As a result, this function rounds up the
+    requested size with 1MB (bmalloc::chunkSize). As a result, all IsoHeap's 16KB page gets 1MB VA while it just uses 16KB of
+    the allocated region. This leads to VA exhaustion since IsoHeap now uses 64x VA than we expected!
+    
+    This patch fixes the above VA exhaustion issue by allocating a page by using tryVMAllocate. When allocating a page, we start
+    using a VM tag for IsoHeap. We discussed at e-mail and we decided reusing a VM tag previously assigned to CLoop Stack since
+    this is less profitable. Since this tag is not Malloc-related tag, Leaks tool can scan memory region conservatively without
+    registering allocated region into Zone, which was previously done in VMHeap and that's why we reused VMHeap for IsoHeap.
+    
+    * bmalloc/BVMTags.h:
+    * bmalloc/IsoPage.cpp:
+    (bmalloc::IsoPageBase::allocatePageMemory):
+    * bmalloc/IsoTLS.cpp:
+    (bmalloc::IsoTLS::ensureEntries):
+    * bmalloc/VMAllocate.h:
+    (bmalloc::vmAllocate):
+    
+    Source/JavaScriptCore:
+    
+    Discussed and we decided to use this VM tag for IsoHeap instead of CLoop stack.
+    
+    * interpreter/CLoopStack.cpp:
+    (JSC::CLoopStack::CLoopStack):
+    
+    Source/WebCore:
+    
+    Changed how we interpret VM tags. Add IsoHeap VM tag support, and rename WebAssembly tag
+    to Gigacage tag.
+    
+    * page/ResourceUsageData.h:
+    * page/ResourceUsageOverlay.h:
+    * page/cocoa/ResourceUsageOverlayCocoa.mm:
+    (WebCore::HistoricResourceUsageData::HistoricResourceUsageData):
+    * page/cocoa/ResourceUsageThreadCocoa.mm:
+    (WebCore::displayNameForVMTag):
+    (WebCore::categoryForVMTag):
+    
+    Source/WTF:
+    
+    Start using a VM tag for IsoHeap instead of CLoop Stack.
+    
+    * wtf/OSAllocator.h:
+    * wtf/VMTags.h:
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@247714 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2019-07-22  Yusuke Suzuki  <ysuzuki@apple.com>
+
+            [bmalloc] Each IsoPage gets 1MB VA because VMHeap::tryAllocateLargeChunk rounds up
+            https://bugs.webkit.org/show_bug.cgi?id=200024
+
+            Reviewed by Saam Barati.
+
+            Start using a VM tag for IsoHeap instead of CLoop Stack.
+
+            * wtf/OSAllocator.h:
+            * wtf/VMTags.h:
+
+2019-07-24  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r247754. rdar://problem/53483290
+
+    Enable HAVE_APP_LINKS_WITH_ISENABLED for entire iOS family
+    https://bugs.webkit.org/show_bug.cgi?id=200040
+    <rdar://problem/53457670>
+    
+    Reviewed by Tim Horton.
+    
+    This feature was enabled for just iOS, but should be enabled for tvOS
+    and watchOS, too.
+    
+    * wtf/Platform.h:
+    
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@247754 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2019-07-23  Keith Rollin  <krollin@apple.com>
+
+            Enable HAVE_APP_LINKS_WITH_ISENABLED for entire iOS family
+            https://bugs.webkit.org/show_bug.cgi?id=200040
+            <rdar://problem/53457670>
+
+            Reviewed by Tim Horton.
+
+            This feature was enabled for just iOS, but should be enabled for tvOS
+            and watchOS, too.
+
+            * wtf/Platform.h:
+
+2019-07-23  Alan Coon  <alancoon@apple.com>
+
+        Revert r247673. rdar://problem/53449723
+
+2019-07-23  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r247673. rdar://problem/53449723
+
+    Speed up HashTable decoding by reserving capacity and avoiding rehashing
+    https://bugs.webkit.org/show_bug.cgi?id=199982
+    
+    Reviewed by Saam Barati.
+    
+    Source/WebKit:
+    
+    Use HashMap::reserveInitialCapacity() in the HashMap IPC decoder for
+    performance. I measured a ~35% improvement when decoding a very large
+    HashMap of Strings (~160k entries) in the context of the
+    StorageManager::GetValues IPC.
+    
+    * Platform/IPC/ArgumentCoders.h:
+    * Shared/API/c/WKDictionary.cpp:
+    (WKDictionaryCreate):
+    
+    Source/WTF:
+    
+    Introduce reserveInitialCapacity() on HashMap to reserve capacity on a
+    HashMap and cut down on rehashing cost when possible.
+    
+    * wtf/HashMap.h:
+    * wtf/HashTable.h:
+    (WTF::HashTable::reserveInitialCapacity):
+    
+    * wtf/persistence/PersistentCoders.h:
+    Use HashMap::reserveInitialCapacity() in the HashMap persistent decoder for
+    performance.
+    
+    Tools:
+    
+    Add API test coverage.
+    
+    * TestWebKitAPI/Tests/WTF/HashMap.cpp:
+    (TestWebKitAPI::TEST):
+    
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@247673 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2019-07-20  Chris Dumez  <cdumez@apple.com>
+
+            Speed up HashTable decoding by reserving capacity and avoiding rehashing
+            https://bugs.webkit.org/show_bug.cgi?id=199982
+
+            Reviewed by Saam Barati.
+
+            Introduce reserveInitialCapacity() on HashMap to reserve capacity on a
+            HashMap and cut down on rehashing cost when possible.
+
+            * wtf/HashMap.h:
+            * wtf/HashTable.h:
+            (WTF::HashTable::reserveInitialCapacity):
+
+            * wtf/persistence/PersistentCoders.h:
+            Use HashMap::reserveInitialCapacity() in the HashMap persistent decoder for
+            performance.
 
 2019-07-18  Alan Coon  <alancoon@apple.com>
 
