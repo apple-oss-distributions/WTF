@@ -29,6 +29,7 @@
 #include <limits.h>
 #include <unicode/utypes.h>
 #include <wtf/Forward.h>
+#include <wtf/Optional.h>
 #include <wtf/RetainPtr.h>
 #include <wtf/Vector.h>
 #include <wtf/text/CString.h>
@@ -44,8 +45,6 @@
 #endif
 
 namespace WTF {
-
-using CharacterMatchFunction = bool (*)(UChar);
 
 // StringView is a non-owning reference to a string, similar to the proposed std::string_view.
 
@@ -119,11 +118,14 @@ public:
     StringView left(unsigned len) const { return substring(0, len); }
     StringView right(unsigned len) const { return substring(length() - len, len); }
 
+    template<typename MatchedCharacterPredicate>
+    StringView stripLeadingAndTrailingMatchedCharacters(const MatchedCharacterPredicate&);
+
     class SplitResult;
     SplitResult split(UChar) const;
 
     size_t find(UChar, unsigned start = 0) const;
-    size_t find(CharacterMatchFunction, unsigned start = 0) const;
+    size_t find(CodeUnitMatchFunction, unsigned start = 0) const;
 
     WTF_EXPORT_STRING_API size_t find(StringView, unsigned start) const;
 
@@ -145,6 +147,7 @@ public:
     int toInt() const;
     int toInt(bool& isValid) const;
     int toIntStrict(bool& isValid) const;
+    std::optional<uint64_t> toUInt64Strict() const;
     float toFloat(bool& isValid) const;
 
     static void invalidate(const StringImpl&);
@@ -156,6 +159,11 @@ private:
 
     void initialize(const LChar*, unsigned length);
     void initialize(const UChar*, unsigned length);
+    void initialize(const LChar*, unsigned length, unsigned mask);
+    void initialize(const UChar*, unsigned length, unsigned mask);
+
+    template<typename CharacterType, typename MatchedCharacterPredicate>
+    StringView stripLeadingAndTrailingMatchedCharacters(const CharacterType*, const MatchedCharacterPredicate&);
 
 #if CHECK_STRINGVIEW_LIFETIME
     WTF_EXPORT_STRING_API bool underlyingStringIsValid() const;
@@ -170,6 +178,7 @@ private:
 
     const void* m_characters { nullptr };
     unsigned m_length { 0 };
+    unsigned m_mask { 0 };
     bool m_is8Bit { true };
 
 #if CHECK_STRINGVIEW_LIFETIME
@@ -222,6 +231,7 @@ inline StringView::~StringView()
 inline StringView::StringView(StringView&& other)
     : m_characters(other.m_characters)
     , m_length(other.m_length)
+    , m_mask(other.m_mask)
     , m_is8Bit(other.m_is8Bit)
 {
     ASSERT(other.underlyingStringIsValid());
@@ -235,6 +245,7 @@ inline StringView::StringView(StringView&& other)
 inline StringView::StringView(const StringView& other)
     : m_characters(other.m_characters)
     , m_length(other.m_length)
+    , m_mask(other.m_mask)
     , m_is8Bit(other.m_is8Bit)
 {
     ASSERT(other.underlyingStringIsValid());
@@ -248,6 +259,7 @@ inline StringView& StringView::operator=(StringView&& other)
 
     m_characters = other.m_characters;
     m_length = other.m_length;
+    m_mask = other.m_mask;
     m_is8Bit = other.m_is8Bit;
 
     other.clear();
@@ -264,6 +276,7 @@ inline StringView& StringView::operator=(const StringView& other)
 
     m_characters = other.m_characters;
     m_length = other.m_length;
+    m_mask = other.m_mask;
     m_is8Bit = other.m_is8Bit;
 
     setUnderlyingString(other);
@@ -274,15 +287,27 @@ inline StringView& StringView::operator=(const StringView& other)
 
 inline void StringView::initialize(const LChar* characters, unsigned length)
 {
-    m_characters = characters;
-    m_length = length;
-    m_is8Bit = true;
+    initialize(characters, length, maskForSize(length));
 }
 
 inline void StringView::initialize(const UChar* characters, unsigned length)
 {
+    initialize(characters, length, maskForSize(length));
+}
+
+inline void StringView::initialize(const LChar* characters, unsigned length, unsigned mask)
+{
     m_characters = characters;
     m_length = length;
+    m_mask = mask;
+    m_is8Bit = true;
+}
+
+inline void StringView::initialize(const UChar* characters, unsigned length, unsigned mask)
+{
+    m_characters = characters;
+    m_length = length;
+    m_mask = mask;
     m_is8Bit = false;
 }
 
@@ -305,9 +330,9 @@ inline StringView::StringView(const StringImpl& string)
 {
     setUnderlyingString(&string);
     if (string.is8Bit())
-        initialize(string.characters8(), string.length());
+        initialize(string.characters8(), string.length(), string.mask());
     else
-        initialize(string.characters16(), string.length());
+        initialize(string.characters16(), string.length(), string.mask());
 }
 
 inline StringView::StringView(const StringImpl* string)
@@ -317,9 +342,9 @@ inline StringView::StringView(const StringImpl* string)
 
     setUnderlyingString(string);
     if (string->is8Bit())
-        initialize(string->characters8(), string->length());
+        initialize(string->characters8(), string->length(), string->mask());
     else
-        initialize(string->characters16(), string->length());
+        initialize(string->characters16(), string->length(), string->mask());
 }
 
 inline StringView::StringView(const String& string)
@@ -330,10 +355,10 @@ inline StringView::StringView(const String& string)
         return;
     }
     if (string.is8Bit()) {
-        initialize(string.characters8(), string.length());
+        initialize(string.characters8(), string.length(), string.mask());
         return;
     }
-    initialize(string.characters16(), string.length());
+    initialize(string.characters16(), string.length(), string.mask());
 }
 
 inline StringView::StringView(const AtomicString& atomicString)
@@ -345,6 +370,7 @@ inline void StringView::clear()
 {
     m_characters = nullptr;
     m_length = 0;
+    m_mask = 0;
     m_is8Bit = true;
 }
 
@@ -433,8 +459,8 @@ inline UChar StringView::operator[](unsigned index) const
 {
     ASSERT(index < length());
     if (is8Bit())
-        return characters8()[index];
-    return characters16()[index];
+        return characters8()[index & m_mask];
+    return characters16()[index & m_mask];
 }
 
 inline bool StringView::contains(UChar character) const
@@ -445,22 +471,16 @@ inline bool StringView::contains(UChar character) const
 inline void StringView::getCharactersWithUpconvert(LChar* destination) const
 {
     ASSERT(is8Bit());
-    auto characters8 = this->characters8();
-    for (unsigned i = 0; i < m_length; ++i)
-        destination[i] = characters8[i];
+    StringImpl::copyCharacters(destination, characters8(), m_length);
 }
 
 inline void StringView::getCharactersWithUpconvert(UChar* destination) const
 {
     if (is8Bit()) {
-        auto characters8 = this->characters8();
-        for (unsigned i = 0; i < m_length; ++i)
-            destination[i] = characters8[i];
+        StringImpl::copyCharacters(destination, characters8(), m_length);
         return;
     }
-    auto characters16 = this->characters16();
-    for (unsigned i = 0; i < m_length; ++i)
-        destination[i] = characters16[i];
+    StringImpl::copyCharacters(destination, characters16(), m_length);
 }
 
 inline StringView::UpconvertedCharacters::UpconvertedCharacters(const StringView& string)
@@ -525,6 +545,13 @@ inline int StringView::toIntStrict(bool& isValid) const
     return charactersToIntStrict(characters16(), m_length, &isValid);
 }
 
+inline std::optional<uint64_t> StringView::toUInt64Strict() const
+{
+    bool isValid;
+    uint64_t result = is8Bit() ? charactersToUInt64Strict(characters8(), m_length, &isValid) : charactersToUInt64Strict(characters16(), m_length, &isValid);
+    return isValid ? std::make_optional(result) : std::nullopt;
+}
+
 inline String StringView::toStringWithoutCopying() const
 {
     if (is8Bit())
@@ -539,7 +566,7 @@ inline size_t StringView::find(UChar character, unsigned start) const
     return WTF::find(characters16(), m_length, character, start);
 }
 
-inline size_t StringView::find(CharacterMatchFunction matchFunction, unsigned start) const
+inline size_t StringView::find(CodeUnitMatchFunction matchFunction, unsigned start) const
 {
     if (is8Bit())
         return WTF::find(characters8(), m_length, matchFunction, start);
@@ -559,11 +586,11 @@ inline void StringView::invalidate(const StringImpl&)
 }
 #endif
 
-template<typename StringType> class StringTypeAdapter;
+template<typename StringType, typename> class StringTypeAdapter;
 
-template<> class StringTypeAdapter<StringView> {
+template<> class StringTypeAdapter<StringView, void> {
 public:
-    StringTypeAdapter<StringView>(StringView string)
+    StringTypeAdapter(StringView string)
         : m_string(string)
     {
     }
@@ -935,6 +962,40 @@ inline bool StringView::SplitResult::Iterator::operator!=(const Iterator& other)
     return !(*this == other);
 }
 
+template<typename CharacterType, typename MatchedCharacterPredicate>
+inline StringView StringView::stripLeadingAndTrailingMatchedCharacters(const CharacterType* characters, const MatchedCharacterPredicate& predicate)
+{
+    if (!m_length)
+        return *this;
+
+    unsigned start = 0;
+    unsigned end = m_length - 1;
+    
+    while (start <= end && predicate(characters[start]))
+        ++start;
+    
+    if (start > end)
+        return StringView::empty();
+
+    while (end && predicate(characters[end]))
+        --end;
+
+    if (!start && end == m_length - 1)
+        return *this;
+
+    StringView result(characters + start, end + 1 - start);
+    result.setUnderlyingString(*this);
+    return result;
+}
+
+template<typename MatchedCharacterPredicate>
+StringView StringView::stripLeadingAndTrailingMatchedCharacters(const MatchedCharacterPredicate& predicate)
+{
+    if (is8Bit())
+        return stripLeadingAndTrailingMatchedCharacters<LChar>(characters8(), predicate);
+    return stripLeadingAndTrailingMatchedCharacters<UChar>(characters16(), predicate);
+}
+
 template<unsigned length> inline bool equalLettersIgnoringASCIICase(StringView string, const char (&lowercaseLetters)[length])
 {
     return equalLettersIgnoringASCIICaseCommon(string, lowercaseLetters);
@@ -946,4 +1007,4 @@ using WTF::append;
 using WTF::equal;
 using WTF::StringView;
 
-#endif // StringView_h
+#endif
