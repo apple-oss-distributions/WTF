@@ -1,6 +1,5 @@
 /*
- * Copyright (C) 2009 Jian Li <jianli@chromium.org>
- * Copyright (C) 2012 Patrick Gansterer <paroga@paroga.com>
+ * Copyright (C) 2019 Apple Inc. All rights reserved.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -20,24 +19,10 @@
  */
 
 #include "config.h"
-#include <wtf/ThreadSpecific.h>
-
-#if !USE(PTHREADS)
+#include <wtf/RefCounted.h>
 
 namespace WTF {
 
-long& flsKeyCount()
-{
-    static long count;
-    return count;
+bool RefCountedBase::areThreadingChecksEnabledGlobally { false };
+
 }
-
-DWORD* flsKeys()
-{
-    static DWORD keys[maxFlsKeySize];
-    return keys;
-}
-
-} // namespace WTF
-
-#endif // !USE(PTHREADS)

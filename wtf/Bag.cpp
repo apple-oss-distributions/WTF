@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Apple Inc. All rights reserved.
+ * Copyright (C) 2020 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -23,24 +23,13 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#pragma once
+#include "config.h"
+#include <wtf/Bag.h>
 
-#import <Availability.h>
+#include <wtf/NeverDestroyed.h>
 
-#if __MAC_OS_X_VERSION_MAX_ALLOWED < 101300
-#import <AppKit/AppKit.h>
-#endif
+namespace WTF {
 
-#if __MAC_OS_X_VERSION_MAX_ALLOWED < 101300
+DEFINE_ALLOCATOR_WITH_HEAP_IDENTIFIER(BagNode);
 
-typedef NSInteger NSControlStateValue;
-static const NSControlStateValue NSControlStateValueMixed = NSMixedState;
-static const NSControlStateValue NSControlStateValueOff = NSOffState;
-static const NSControlStateValue NSControlStateValueOn = NSOnState;
-
-static const NSLevelIndicatorStyle NSLevelIndicatorStyleRelevancy = NSRelevancyLevelIndicatorStyle;
-static const NSLevelIndicatorStyle NSLevelIndicatorStyleContinuousCapacity = NSContinuousCapacityLevelIndicatorStyle;
-static const NSLevelIndicatorStyle NSLevelIndicatorStyleDiscreteCapacity = NSDiscreteCapacityLevelIndicatorStyle;
-static const NSLevelIndicatorStyle NSLevelIndicatorStyleRating = NSRatingLevelIndicatorStyle;
-
-#endif // __MAC_OS_X_VERSION_MAX_ALLOWED < 101300
+} // namespace WTF

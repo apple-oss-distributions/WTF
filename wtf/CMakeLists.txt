@@ -2,6 +2,7 @@ set(WTF_PUBLIC_HEADERS
     ASCIICType.h
     AggregateLogger.h
     Algorithms.h
+    AnsiColors.h
     Assertions.h
     Atomics.h
     AutodrainedPool.h
@@ -44,7 +45,9 @@ set(WTF_PUBLIC_HEADERS
     CryptographicUtilities.h
     CryptographicallyRandomNumber.h
     DataLog.h
+    DataMutex.h
     DateMath.h
+    DebugHeap.h
     DebugUtilities.h
     DeferrableRefCounted.h
     Deque.h
@@ -122,6 +125,7 @@ set(WTF_PUBLIC_HEADERS
     MD5.h
     MachSendRight.h
     MainThread.h
+    MainThreadData.h
     MallocPtr.h
     Markable.h
     MathExtras.h
@@ -148,9 +152,12 @@ set(WTF_PUBLIC_HEADERS
     ObjCRuntimeExtras.h
     ObjectIdentifier.h
     OptionSet.h
+    OptionSetHash.h
     Optional.h
     OrderMaker.h
     Packed.h
+    PackedRef.h
+    PackedRefPtr.h
     PackedIntVector.h
     PageAllocation.h
     PageBlock.h
@@ -188,6 +195,7 @@ set(WTF_PUBLIC_HEADERS
     RefCountedLeakCounter.h
     RefCounter.h
     RefPtr.h
+    ResourceUsage.h
     RetainPtr.h
     RunLoop.h
     RunLoopTimer.h
@@ -211,6 +219,7 @@ set(WTF_PUBLIC_HEADERS
     SpanningTree.h
     Spectrum.h
     StackBounds.h
+    StackCheck.h
     StackPointer.h
     StackShot.h
     StackShotProfiler.h
@@ -259,6 +268,7 @@ set(WTF_PUBLIC_HEADERS
     ValueCheck.h
     Variant.h
     Vector.h
+    VectorHash.h
     VectorTraits.h
     WTFSemaphore.h
     WallTime.h
@@ -322,7 +332,6 @@ set(WTF_PUBLIC_HEADERS
     text/TextStream.h
     text/UTF8ConversionError.h
     text/UniquedStringImpl.h
-    text/ValueToString.h
     text/WTFString.h
 
     text/icu/TextBreakIteratorICU.h
@@ -342,10 +351,12 @@ set(WTF_SOURCES
     ASCIICType.cpp
     Assertions.cpp
     AutomaticThread.cpp
+    Bag.cpp
     BitVector.cpp
     CPUTime.cpp
     ClockType.cpp
     CompilationThread.cpp
+    ConcurrentBuffer.cpp
     ConcurrentPtrHashSet.cpp
     CountingLock.cpp
     CrossThreadCopier.cpp
@@ -355,6 +366,7 @@ set(WTF_SOURCES
     CurrentTime.cpp
     DataLog.cpp
     DateMath.cpp
+    DebugHeap.cpp
     FastBitVector.cpp
     FastMalloc.cpp
     FilePrintStream.cpp
@@ -390,11 +402,15 @@ set(WTF_SOURCES
     RandomDevice.cpp
     RandomNumber.cpp
     ReadWriteLock.cpp
+    RefCounted.cpp
+    RefCountedArray.cpp
     RefCountedLeakCounter.cpp
     RunLoop.cpp
     SHA1.cpp
     Seconds.cpp
+    SegmentedVector.cpp
     SixCharacterHash.cpp
+    SmallPtrSet.cpp
     StackBounds.cpp
     StackPointer.cpp
     StackStats.cpp
@@ -409,6 +425,8 @@ set(WTF_SOURCES
     URLHelpers.cpp
     URLParser.cpp
     UUID.cpp
+    UniqueArray.cpp
+    Vector.cpp
     WTFAssertions.cpp
     WallTime.cpp
     WordLock.cpp
@@ -437,6 +455,7 @@ set(WTF_SOURCES
     text/CString.cpp
     text/ExternalStringImpl.cpp
     text/LineEnding.cpp
+    text/StringBuffer.cpp
     text/StringBuilder.cpp
     text/StringBuilderJSON.cpp
     text/StringImpl.cpp

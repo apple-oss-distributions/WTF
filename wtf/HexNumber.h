@@ -21,6 +21,7 @@
 #pragma once
 
 #include <array>
+#include <wtf/text/StringBuilder.h>
 #include <wtf/text/StringConcatenate.h>
 
 namespace WTF {
@@ -63,16 +64,18 @@ inline void appendUnsignedAsHex(NumberType number, DestinationType& destination,
 
 // FIXME: Consider renaming to appendHex.
 // Same as appendUnsignedAsHex, but zero-padding to get at least the desired number of digits.
-template<typename NumberType, typename DestinationType>
-inline void appendUnsignedAsHexFixedSize(NumberType number, DestinationType& destination, unsigned minimumDigits, HexConversionMode mode = Uppercase)
+template<typename NumberType>
+inline void appendUnsignedAsHexFixedSize(NumberType number, StringBuilder& destination, unsigned minimumDigits, HexConversionMode mode = Uppercase)
 {
     // Each byte can generate up to two digits.
     std::array<LChar, sizeof(NumberType) * 2> buffer;
     auto result = Internal::appendHex(buffer, number, minimumDigits, mode);
-    destination.append(result.first, result.second);
+    destination.appendCharacters(result.first, result.second);
 }
 
 struct HexNumberBuffer {
+    WTF_MAKE_STRUCT_FAST_ALLOCATED;
+
     std::array<LChar, 16> characters;
     unsigned length;
 };
