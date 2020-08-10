@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014 Apple Inc. All rights reserved.
+ * Copyright (C) 2020 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -23,38 +23,13 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "config.h"
-
-#include <stdint.h>
-#include <wtf/HashMap.h>
-#include <wtf/HashSet.h>
-#include <wtf/Lock.h>
-#include <wtf/MainThread.h>
-#include <wtf/NeverDestroyed.h>
-#include <wtf/StdLibExtras.h>
-
-// This file contains deprecated symbols that the last released version of Safari uses.
-// Once Safari stops using them, we should remove them.
+#pragma once
 
 namespace WTF {
 
-#if PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED < 101400
-struct LockBase {
-private:
-    WTF_EXPORT_PRIVATE void lockSlow();
-    WTF_EXPORT_PRIVATE void unlockSlow();
-    Atomic<uint8_t> m_byte;
+enum class FailureAction {
+    Crash,
+    Report
 };
-
-void LockBase::lockSlow()
-{
-    DefaultLockAlgorithm::lockSlow(m_byte);
-}
-
-void LockBase::unlockSlow()
-{
-    DefaultLockAlgorithm::unlockSlow(m_byte, DefaultLockAlgorithm::Unfair);
-}
-#endif
 
 } // namespace WTF
