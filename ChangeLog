@@ -1,131 +1,788 @@
-2020-08-10  Alan Coon  <alancoon@apple.com>
+2020-09-17  Alan Coon  <alancoon@apple.com>
 
-        Cherry-pick r265272. rdar://problem/66604070
+        Cherry-pick r266802. rdar://problem/69101097
 
-    CheckpointSideState shoud play nicely with StackOverflowException unwinding.
-    https://bugs.webkit.org/show_bug.cgi?id=215114
+    Text copied and pasted from Mac Catalyst apps appears larger than expected
+    https://bugs.webkit.org/show_bug.cgi?id=215971
+    <rdar://problem/65768907>
     
-    Reviewed by Saam Barati.
+    Reviewed by Tim Horton.
     
-    JSTests:
+    Source/WebKit:
     
-    * stress/stack-overflow-into-frame-with-pending-checkpoint.js: Added.
-    (foo.catch.async bar):
-    (foo.catch):
-    (foo):
+    Various pieces of platform logic in Mac Catalyst depend on the user interface idiom (i.e. Mac or iPad) of the
+    app, as well as the application-wide "scale factor". In the context of this bug, NSAttributedString to RTF data
+    conversion methods in `UIFoundation` consult the scale factor of `UIiOSMacIdiomManager` to determine whether to
+    emit 0 (standard) or 1 (iOS) for the `\cocoatextscaling` attribute. The fact that the web process' scale factor
+    may be out of sync with the UI process' scale factor leads to copied RTF data in the web process appearing
+    either larger or smaller than expected, due to an incorrect `NSTextScalingType` value.
     
-    Source/JavaScriptCore:
+    To mitigate this (as well as any other issues), we add a mechanism for the UI process to forward the global
+    scale factor and user interface idiom to the web process inside of the web process creation parameters, and then
+    use new UIKit SPI to override the scale factor and idiom within the web process.
     
-    This patch fixes an issue where we the StackVisitor would
-    automatically unwind into the first frame before calling into the
-    provided functor. As a note, we do this because the first frame is
-    not fully initialized at the time we check for stack
-    overflow. When this happened we would fail to clear the side state
-    causing a memory leak. To fix this the unwind function now clears
-    every checkpoint up to and including the call frame containing our
-    handler. Some care needs to be taken that we don't clear
-    checkpoint side state for other threads, which could happen if
-    there are no checkpoints on the current thread and an API
-    miggrated us from another thread below the current thread.
+    * Scripts/process-entitlements.sh:
     
-    This patch also makes two refacorings. The first is to make the
-    checkpoint side state into a stack, which is how we used it
-    anyway. The second is that CallFrame::dump and everything associated
-    with it is now marked const so we can PointerDump a CallFrame*.
+    Add a new entitlement needed to use `_UIApplicationCatalystRequestViewServiceIdiomAndScaleFactor`.
     
-    * dfg/DFGOSRExit.cpp:
-    (JSC::DFG::OSRExit::compileExit):
-    * ftl/FTLOSRExitCompiler.cpp:
-    (JSC::FTL::compileStub):
-    * interpreter/CallFrame.cpp:
-    (JSC::CallFrame::bytecodeIndex const):
-    (JSC::CallFrame::codeOrigin const):
-    (JSC::CallFrame::dump const):
-    (JSC::CallFrame::bytecodeIndex): Deleted.
-    (JSC::CallFrame::codeOrigin): Deleted.
-    (JSC::CallFrame::dump): Deleted.
-    * interpreter/CallFrame.h:
-    (JSC::CallFrame::argument const):
-    (JSC::CallFrame::uncheckedArgument const):
-    (JSC::CallFrame::getArgumentUnsafe const):
-    (JSC::CallFrame::thisValue const):
-    (JSC::CallFrame::newTarget const):
-    (JSC::CallFrame::argument): Deleted.
-    (JSC::CallFrame::uncheckedArgument): Deleted.
-    (JSC::CallFrame::getArgumentUnsafe): Deleted.
-    (JSC::CallFrame::thisValue): Deleted.
-    (JSC::CallFrame::newTarget): Deleted.
-    * interpreter/CheckpointOSRExitSideState.h:
-    (JSC::CheckpointOSRExitSideState::CheckpointOSRExitSideState):
-    * interpreter/Interpreter.cpp:
-    (JSC::UnwindFunctor::operator() const):
-    (JSC::Interpreter::unwind):
-    (): Deleted.
-    * llint/LLIntSlowPaths.cpp:
-    (JSC::LLInt::slow_path_checkpoint_osr_exit_from_inlined_call):
-    (JSC::LLInt::slow_path_checkpoint_osr_exit):
-    * runtime/VM.cpp:
-    (JSC::VM::scanSideState const):
-    (JSC::VM::pushCheckpointOSRSideState):
-    (JSC::VM::popCheckpointOSRSideState):
-    (JSC::VM::popAllCheckpointOSRSideStateUntil):
-    (JSC::VM::addCheckpointOSRSideState): Deleted.
-    (JSC::VM::findCheckpointOSRSideState): Deleted.
-    * runtime/VM.h:
+    * Shared/WebProcessCreationParameters.cpp:
+    (WebKit::WebProcessCreationParameters::encode const):
+    (WebKit::WebProcessCreationParameters::decode):
+    * Shared/WebProcessCreationParameters.h:
+    * UIProcess/Cocoa/WebProcessPoolCocoa.mm:
+    (WebKit::WebProcessPool::platformInitializeWebProcess):
+    
+    Use `_UIApplicationCatalystUserInterfaceIdiom` and `_UIApplicationCatalystScaleFactor` to grab the global user
+    interface idiom and scale factor, respectively.
+    
+    * WebProcess/cocoa/WebProcessCocoa.mm:
+    (WebKit::WebProcess::platformInitializeWebProcess):
+    
+    Override the idiom and scale factor in the web process with the idiom and scale factor from the UI process,
+    using the new SPI `_UIApplicationCatalystRequestViewServiceIdiomAndScaleFactor`. As this function hasn't landed
+    yet, we soft link the function for now to avoid causing the web process to instantly crash on any builds without
+    the fix for <rdar://problem/68524148>.
     
     Source/WTF:
     
-    Add a helper so we can have soft stack bounds.
+    Add a new flag to guard the presence of `_UIApplicationCatalystUserInterfaceIdiom`,
+    `_UIApplicationCatalystScaleFactor`, and `_UIApplicationCatalystRequestViewServiceIdiomAndScaleFactor`.
     
-    * wtf/StackBounds.h:
-    (WTF::StackBounds::withSoftOrigin const):
+    * wtf/PlatformHave.h:
     
     
-    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@265272 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@266802 268f45cc-cd09-0410-ab3c-d52691b4dbfc
 
-    2020-08-04  Keith Miller  <keith_miller@apple.com>
+    2020-09-09  Wenson Hsieh  <wenson_hsieh@apple.com>
 
-            CheckpointSideState shoud play nicely with StackOverflowException unwinding.
-            https://bugs.webkit.org/show_bug.cgi?id=215114
+            Text copied and pasted from Mac Catalyst apps appears larger than expected
+            https://bugs.webkit.org/show_bug.cgi?id=215971
+            <rdar://problem/65768907>
+
+            Reviewed by Tim Horton.
+
+            Add a new flag to guard the presence of `_UIApplicationCatalystUserInterfaceIdiom`,
+            `_UIApplicationCatalystScaleFactor`, and `_UIApplicationCatalystRequestViewServiceIdiomAndScaleFactor`.
+
+            * wtf/PlatformHave.h:
+
+2020-09-17  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r266827. rdar://problem/69101047
+
+    [CG] REGRESSION (Big Sur): A GIF image with a finite loopCount loops an extra cycle
+    https://bugs.webkit.org/show_bug.cgi?id=216018
+    <rdar://problem/68304035>
+    
+    Patch by Said Abou-Hallawa <sabouhallawa@apple.com> on 2020-09-10
+    Reviewed by Tim Horton.
+    
+    Source/WebCore:
+    
+    Remove the extra 'one' we used to add to the GIF loopCount since it is
+    now added by the underlying frameworks. But make sure we are compatible
+    with the older versions of macOS and iOS.
+    
+    * platform/graphics/cg/ImageDecoderCG.cpp:
+    (WebCore::ImageDecoderCG::repetitionCount const):
+    
+    Source/WTF:
+    
+    Add a new macro for the new accurate behavior of CGImageSource.
+    
+    Unrelated change: Fix the conditions for enabling the WebP images.
+    
+    * wtf/PlatformHave.h:
+    
+    LayoutTests:
+    
+    * platform/mac/TestExpectations:
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@266827 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2020-09-10  Said Abou-Hallawa  <sabouhallawa@apple.com>
+
+            [CG] REGRESSION (Big Sur): A GIF image with a finite loopCount loops an extra cycle
+            https://bugs.webkit.org/show_bug.cgi?id=216018
+            <rdar://problem/68304035>
+
+            Reviewed by Tim Horton.
+
+            Add a new macro for the new accurate behavior of CGImageSource.
+
+            Unrelated change: Fix the conditions for enabling the WebP images.
+
+            * wtf/PlatformHave.h:
+
+2020-09-14  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r266898. rdar://problem/68881029
+
+    Disable hardware JPEG decoding on x86 Mac
+    https://bugs.webkit.org/show_bug.cgi?id=216377
+    
+    Reviewed by Geoff Garen.
+    
+    Source/WebCore/PAL:
+    
+    Add wrappers for a new MediaToolbox SPI that allows us to disable HW JPEG decoding.
+    
+    * PAL.xcodeproj/project.pbxproj:
+    * pal/PlatformMac.cmake:
+    * pal/cocoa/MediaToolboxSoftLink.cpp:
+    * pal/cocoa/MediaToolboxSoftLink.h:
+    
+    Source/WebKit:
+    
+    In Big Sur, ImageIO uses hardware JPEG decoding automatically for certain JPEGs. This caused
+    a small regression in our battery life benchmark since the one-time setup cost for the
+    decoder (~20-30 ms per process) was higher than the per-decode win we got from the HW decoder.
+    
+    For now, we're reverting to the Catalina behavior of not using hardware JPEG on x86 Macs by
+    calling a MediaToolbox SPI. (The tradeoffs for Apple Silicon are different so we use
+    ImageIO's default heuristics on that architecture.) We plan to revisit this decision once we
+    move to a GPUProcess world.
+    
+    * WebProcess/cocoa/WebProcessCocoa.mm:
+    (WebKit::WebProcess::platformInitializeWebProcess):
+    
+    Source/WTF:
+    
+    Add macros to disable HW JPEG decoding on x86 Macs and indicate the presence of a new MediaToolbox SPI.
+    (The latter is to prevent unnecessary dlopen/dlsym calls since we soft-link MediaToolbox.)
+    
+    * wtf/PlatformEnableCocoa.h:
+    * wtf/PlatformHave.h:
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@266898 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2020-09-10  Ben Nham  <nham@apple.com>
+
+            Disable hardware JPEG decoding on x86 Mac
+            https://bugs.webkit.org/show_bug.cgi?id=216377
+
+            Reviewed by Geoff Garen.
+
+            Add macros to disable HW JPEG decoding on x86 Macs and indicate the presence of a new MediaToolbox SPI.
+            (The latter is to prevent unnecessary dlopen/dlsym calls since we soft-link MediaToolbox.)
+
+            * wtf/PlatformEnableCocoa.h:
+            * wtf/PlatformHave.h:
+
+2020-09-14  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r266844. rdar://problem/68880990
+
+    [Cocoa] PERF: Don't instantiate AVPlayer-based audio decoders or renderers if an element is initially muted.
+    https://bugs.webkit.org/show_bug.cgi?id=216299
+    
+    Reviewed by Eric Carlson.
+    
+    Source/WebCore:
+    
+    When an AVPlayer is created, even if muted, it will still instantiate an audio decoder and renderer if the
+    AVAsset in the current player item has an audio track. Ostensibly, this is so that an unmute operation is
+    instantaneous, as it's merely applying a zero gain to the decoded audio. However for web content, there's
+    many autoplaying, muted <video> elements which may never be un-muted before being destroyed.
+    
+    Implement a policy where, if an AVPlayer is initially muted, we adopt AVFoundation SPI to forcibly prevent
+    audio decoding and rendering until the first time the AVPlayer is unmuted. This means the first un-mute may
+    not be instantaneous, as an audio decoder will have to be created and fed before any audio is rendered.
+    
+    There's some incorrect caching of mute state at the MediaPlayer level; so MediaPlayer and MPPAVFoundationObjC
+    can get their respective m_muted states out of sync. Make sure that HTMLMediaElement always sets muted state
+    after creating a MediaPlayer and that, respectively, MPPAVFoundationObjC always queries it's parent MediaPlayer's
+    mute state when it in turn is created.
+    
+    * html/HTMLMediaElement.cpp:
+    (WebCore::HTMLMediaElement::createMediaPlayer):
+    * platform/graphics/avfoundation/objc/MediaPlayerPrivateAVFoundationObjC.mm:
+    (WebCore::MediaPlayerPrivateAVFoundationObjC::MediaPlayerPrivateAVFoundationObjC):
+    (WebCore::MediaPlayerPrivateAVFoundationObjC::createAVPlayer):
+    (WebCore::MediaPlayerPrivateAVFoundationObjC::setMuted):
+    
+    Source/WebCore/PAL:
+    
+    * pal/spi/cocoa/AVFoundationSPI.h:
+    
+    Source/WTF:
+    
+    * wtf/PlatformHave.h:
+    
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@266844 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2020-09-10  Jer Noble  <jer.noble@apple.com>
+
+            [Cocoa] PERF: Don't instantiate AVPlayer-based audio decoders or renderers if an element is initially muted.
+            https://bugs.webkit.org/show_bug.cgi?id=216299
+
+            Reviewed by Eric Carlson.
+
+            * wtf/PlatformHave.h:
+
+2020-09-10  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r266406. rdar://problem/68652786
+
+    Remove some PtrTag debugging code from release builds.
+    https://bugs.webkit.org/show_bug.cgi?id=216025
+    <rdar://problem/68098263>
+    
+    Reviewed by Saam Barati.
+    
+    Source/JavaScriptCore:
+    
+    Removed PtrTag name lookup debugging utility from release builds.
+    
+    * runtime/JSCPtrTag.cpp:
+    * runtime/JSCPtrTag.h:
+    
+    Source/WTF:
+    
+    Converted uses of PtrTagAction::ReleaseAssert to PtrTagAction::DebugAssert.
+    These assertions serve a purpose during development (hence, PtrTagAction::DebugAssert),
+    but is no longer needed for release builds.  Previously, we use these assertions
+    to verify that pointers are tagged correctly in release build.  Clang takes care
+    of that automatically now.
+    
+    Also removed PtrTag name lookup debugging utility from release builds.
+    
+    * wtf/PtrTag.cpp:
+    * wtf/PtrTag.h:
+    (WTF::untagCodePtr):
+    (WTF::retagCodePtrImpl):
+    (WTF::assertIsCFunctionPtr):
+    (WTF::assertIsNotTagged):
+    (WTF::assertIsTagged):
+    (WTF::assertIsTaggedWith):
+    
+    
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@266406 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2020-08-31  Mark Lam  <mark.lam@apple.com>
+
+            Remove some PtrTag debugging code from release builds.
+            https://bugs.webkit.org/show_bug.cgi?id=216025
+            <rdar://problem/68098263>
 
             Reviewed by Saam Barati.
 
-            Add a helper so we can have soft stack bounds.
+            Converted uses of PtrTagAction::ReleaseAssert to PtrTagAction::DebugAssert.
+            These assertions serve a purpose during development (hence, PtrTagAction::DebugAssert),
+            but is no longer needed for release builds.  Previously, we use these assertions
+            to verify that pointers are tagged correctly in release build.  Clang takes care
+            of that automatically now.
 
-            * wtf/StackBounds.h:
-            (WTF::StackBounds::withSoftOrigin const):
+            Also removed PtrTag name lookup debugging utility from release builds.
 
-2020-08-10  Alan Coon  <alancoon@apple.com>
+            * wtf/PtrTag.cpp:
+            * wtf/PtrTag.h:
+            (WTF::untagCodePtr):
+            (WTF::retagCodePtrImpl):
+            (WTF::assertIsCFunctionPtr):
+            (WTF::assertIsNotTagged):
+            (WTF::assertIsTagged):
+            (WTF::assertIsTaggedWith):
 
-        Cherry-pick r265252. rdar://problem/66645897
+2020-09-01  Alan Coon  <alancoon@apple.com>
 
-    about: scheme URL constants should be backed by StaticStringImpl
-    https://bugs.webkit.org/show_bug.cgi?id=215113
+        Cherry-pick r266145. rdar://problem/68179384
+
+    [Win] Assert failure under RunLoop::RunLoop
+    https://bugs.webkit.org/show_bug.cgi?id=215812
     
+    Reviewed by Brent Fulgham.
+    
+    The assert 'ASSERT(::IsWindow(m_runLoopMessageWindow))' under RunLoop::RunLoop will fail if the JSC API JSGlobalContextCreate*()
+    is being called by a client before WTF::initializeMainThread() has been called. The assertion fails because the method
+    RunLoop::registerRunLoopMessageWindowClass() has not been called yet, since it is only called when initializing the main thread.
+    This patch addresses this issue by making sure the window class has been registered before being referenced in RunLoop::RunLoopl
+    The method call is also removed from the main thread initialization, since the window class is only used in RunLoop::RunLoop,
+    making it sufficient to only be registered there. Also change the debug assert to a release assert, so we can catch similar
+    issues in release builds.
+    
+    * wtf/win/MainThreadWin.cpp:
+    (WTF::initializeMainThreadPlatform):
+    * wtf/win/RunLoopWin.cpp:
+    (WTF::RunLoop::registerRunLoopMessageWindowClass):
+    (WTF::RunLoop::RunLoop):
+    
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@266145 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2020-08-25  Per Arne Vollan  <pvollan@apple.com>
+
+            [Win] Assert failure under RunLoop::RunLoop
+            https://bugs.webkit.org/show_bug.cgi?id=215812
+
+            Reviewed by Brent Fulgham.
+
+            The assert 'ASSERT(::IsWindow(m_runLoopMessageWindow))' under RunLoop::RunLoop will fail if the JSC API JSGlobalContextCreate*()
+            is being called by a client before WTF::initializeMainThread() has been called. The assertion fails because the method
+            RunLoop::registerRunLoopMessageWindowClass() has not been called yet, since it is only called when initializing the main thread.
+            This patch addresses this issue by making sure the window class has been registered before being referenced in RunLoop::RunLoopl
+            The method call is also removed from the main thread initialization, since the window class is only used in RunLoop::RunLoop,
+            making it sufficient to only be registered there. Also change the debug assert to a release assert, so we can catch similar
+            issues in release builds.
+
+            * wtf/win/MainThreadWin.cpp:
+            (WTF::initializeMainThreadPlatform):
+            * wtf/win/RunLoopWin.cpp:
+            (WTF::RunLoop::registerRunLoopMessageWindowClass):
+            (WTF::RunLoop::RunLoop):
+
+2020-08-26  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r266087. rdar://problem/67836301
+
+    Implement Request/Response consuming as FormData
+    https://bugs.webkit.org/show_bug.cgi?id=215671
+    
+    Patch by Alex Christensen <achristensen@webkit.org> on 2020-08-24
     Reviewed by Darin Adler.
     
-    * wtf/URL.cpp:
-    (WTF::aboutBlankURL):
-    (WTF::aboutSrcDocURL):
+    LayoutTests/imported/w3c:
     
+    * web-platform-tests/fetch/api/abort/general.any-expected.txt:
+    * web-platform-tests/fetch/api/abort/general.any.worker-expected.txt:
+    * web-platform-tests/fetch/api/request/request-consume-empty-expected.txt:
+    This remaining failing test now fails similarly in all browsers.
+    * web-platform-tests/fetch/api/request/request-consume-expected.txt:
+    * web-platform-tests/fetch/api/request/request-init-002-expected.txt:
+    * web-platform-tests/fetch/api/response/response-consume-empty-expected.txt:
+    This remaining failing test now fails similarly in all browsers.
+    * web-platform-tests/fetch/api/response/response-consume-expected.txt:
+    * web-platform-tests/fetch/api/response/response-error-from-stream-expected.txt:
+    This change makes the formData failures in this file look like all the other failures in this file,
+    which should be fixed together in a separate patch.
+    * web-platform-tests/fetch/api/response/response-init-002-expected.txt:
+    * web-platform-tests/url/urlencoded-parser.any-expected.txt:
+    * web-platform-tests/url/urlencoded-parser.any.worker-expected.txt:
+    * web-platform-tests/service-workers/service-worker/fetch-event-respond-with-custom-response.https-expected.txt:
     
+    Source/WebCore:
     
-    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@265252 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+    Covered by many newly passing WPT tests, for most of which Safari was the only failing browser.
+    
+    * Modules/fetch/FetchBody.cpp:
+    (WebCore::FetchBody::formData):
+    (WebCore::FetchBody::consume):
+    (WebCore::FetchBody::consumeFormData):
+    * Modules/fetch/FetchBody.h:
+    * Modules/fetch/FetchBodyConsumer.cpp:
+    (WebCore::formDataFromData):
+    (WebCore::resolveWithTypeAndData):
+    (WebCore::FetchBodyConsumer::resolve):
+    * Modules/fetch/FetchBodyConsumer.h:
+    
+    Source/WebKit:
+    
+    * WebProcess/Storage/WebServiceWorkerFetchTaskClient.cpp:
+    (WebKit::WebServiceWorkerFetchTaskClient::didReceiveFormDataAndFinish):
+    Add a fast path that allows non-blob FormData responses from service workers to not hang.
+    This part is covered by this layout test:
+    imported/w3c/web-platform-tests/service-workers/service-worker/fetch-event-respond-with-custom-response.https.html
+    
+    Source/WTF:
+    
+    In order to be compatible with other browsers, we need a verson of String::fromUTF8 that
+    uses U8_NEXT_OR_FFFD instead of U8_NEXT, but changing that across the board will break other things.
+    Leave everything else as it is, use templates and constexpr to not add any branches, but add
+    String::fromUTF8ReplacingInvalidSequences to allow me to make our FormData consuming compatible with other browsers.
+    
+    * wtf/text/WTFString.cpp:
+    (WTF::fromUTF8Helper):
+    (WTF::String::fromUTF8):
+    (WTF::String::fromUTF8ReplacingInvalidSequences):
+    * wtf/text/WTFString.h:
+    * wtf/unicode/UTF8Conversion.cpp:
+    (WTF::Unicode::convertUTF8ToUTF16Impl):
+    (WTF::Unicode::convertUTF8ToUTF16):
+    (WTF::Unicode::convertUTF8ToUTF16ReplacingInvalidSequences):
+    * wtf/unicode/UTF8Conversion.h:
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@266087 268f45cc-cd09-0410-ab3c-d52691b4dbfc
 
-    2020-08-04  Alex Christensen  <achristensen@webkit.org>
+    2020-08-24  Alex Christensen  <achristensen@webkit.org>
 
-            about: scheme URL constants should be backed by StaticStringImpl
-            https://bugs.webkit.org/show_bug.cgi?id=215113
+            Implement Request/Response consuming as FormData
+            https://bugs.webkit.org/show_bug.cgi?id=215671
 
             Reviewed by Darin Adler.
 
-            * wtf/URL.cpp:
-            (WTF::aboutBlankURL):
-            (WTF::aboutSrcDocURL):
+            In order to be compatible with other browsers, we need a verson of String::fromUTF8 that
+            uses U8_NEXT_OR_FFFD instead of U8_NEXT, but changing that across the board will break other things.
+            Leave everything else as it is, use templates and constexpr to not add any branches, but add
+            String::fromUTF8ReplacingInvalidSequences to allow me to make our FormData consuming compatible with other browsers.
 
-2020-08-05  Russell Epstein  <repstein@apple.com>
+            * wtf/text/WTFString.cpp:
+            (WTF::fromUTF8Helper):
+            (WTF::String::fromUTF8):
+            (WTF::String::fromUTF8ReplacingInvalidSequences):
+            * wtf/text/WTFString.h:
+            * wtf/unicode/UTF8Conversion.cpp:
+            (WTF::Unicode::convertUTF8ToUTF16Impl):
+            (WTF::Unicode::convertUTF8ToUTF16):
+            (WTF::Unicode::convertUTF8ToUTF16ReplacingInvalidSequences):
+            * wtf/unicode/UTF8Conversion.h:
 
-        Revert r265115. rdar://problem/66552761
+2020-08-18  Simon Fraser  <simon.fraser@apple.com>
+
+        Turn off wheel event regions until we need them
+        https://bugs.webkit.org/show_bug.cgi?id=215586
+
+        Reviewed by Darin Adler.
+        
+        Leave ENABLE_WHEEL_EVENT_REGIONS off because it's currently unused, and adds extra
+        region building overhead on macOS.
+
+        * wtf/PlatformEnableCocoa.h:
+
+2020-08-17  Fujii Hironori  <Hironori.Fujii@sony.com>
+
+        [WTF] HashTable<Ref<K>, V>::HashTable(const HashTable& other) can't compile
+        https://bugs.webkit.org/show_bug.cgi?id=215550
+
+        Reviewed by Darin Adler.
+
+        Even though the copy constructor takes a const HashTable
+        reference, RefHashTraits::assignToEmpty takes non-const Ref<P>. It
+        seems that RefHashTraits::assignToEmpty and
+        Ref::assignToHashTableEmptyValue are unnecessary. Just remove them.
+
+        * wtf/HashTraits.h:
+        (WTF::RefHashTraits::assignToEmpty): Deleted.
+        * wtf/Ref.h:
+        (WTF::Ref::assignToHashTableEmptyValue): Deleted.
+
+2020-08-17  Youenn Fablet  <youenn@apple.com>
+
+        Bump HAVE_NSURLSESSION_WEBSOCKET requirement to BigSur for MacOS
+        https://bugs.webkit.org/show_bug.cgi?id=215517
+
+        Reviewed by Alex Christensen.
+
+        Catalina NSURLSession WebSocket is missing some features we need.
+        Bump it to Big Sur.
+
+        * wtf/PlatformHave.h:
+
+2020-08-15  Yusuke Suzuki  <ysuzuki@apple.com>
+
+        Use std::call_once + LazyNeverDestroyed to initialize complex data structures
+        https://bugs.webkit.org/show_bug.cgi?id=215535
+        <rdar://problem/66774266>
+
+        Reviewed by Mark Lam.
+
+        NeverDestroyed<> is not thread-safe in Darwin build since it is not using C++11 thread-safe static variable semantics.
+        This patch uses LazyNeverDestroyed and call_once to initialize complex data structures so that we can ensure they are
+        initialized atomically.
+
+        We also move some of `singleton` definitions from headers to cpp files. This is important since this ensures that singleton
+        is only one instance which is generated in one translation unit.
+
+        * WTF.xcodeproj/project.pbxproj:
+        * wtf/CMakeLists.txt:
+        * wtf/FastMalloc.cpp:
+        (WTF::MallocCallTracker::singleton):
+        * wtf/Language.cpp:
+        (WTF::observerMap):
+        (WTF::preferredLanguagesOverride):
+        * wtf/Logger.cpp:
+        (WTF::Logger::observers):
+        * wtf/Logger.h:
+        (WTF::Logger::observerLock):
+        (WTF::Logger::observers): Deleted.
+        * wtf/MemoryPressureHandler.cpp:
+        (WTF::MemoryPressureHandler::singleton):
+        * wtf/MemoryPressureHandler.h:
+        * wtf/RunLoop.cpp:
+        (WTF::RunLoop::current):
+        * wtf/Threading.cpp:
+        (WTF::Thread::initializeInThread):
+        * wtf/URL.cpp:
+        (WTF::aboutBlankURL):
+        (WTF::aboutSrcDocURL):
+        * wtf/cf/LanguageCF.cpp:
+        (WTF::preferredLanguages):
+        * wtf/cocoa/NSURLExtras.mm:
+        (WTF::rangeOfURLScheme):
+        * wtf/text/LineBreakIteratorPoolICU.cpp: Copied from Source/WTF/wtf/Logger.cpp.
+        (WTF::LineBreakIteratorPool::sharedPool):
+        * wtf/text/LineBreakIteratorPoolICU.h:
+        (WTF::LineBreakIteratorPool::sharedPool): Deleted.
+        * wtf/text/StringView.cpp:
+        * wtf/text/TextBreakIterator.cpp:
+        (WTF::TextBreakIteratorCache::singleton):
+        * wtf/text/TextBreakIterator.h:
+        (WTF::TextBreakIteratorCache::singleton): Deleted.
+        * wtf/threads/Signals.cpp:
+        (WTF::activeThreads):
+
+2020-08-11  Wenson Hsieh  <wenson_hsieh@apple.com>
+
+        Text input autocorrect="off" attribute ignored on Mac
+        https://bugs.webkit.org/show_bug.cgi?id=151019
+        <rdar://problem/65061700>
+
+        Reviewed by Simon Fraser.
+
+        * wtf/PlatformEnableCocoa.h: Turn the feature on for macOS.
+
+2020-08-10  Myles C. Maxfield  <mmaxfield@apple.com>
+
+        [Cocoa] Migrate from CTFontTransformGlyphsWithLanguage() to CTFontShapeGlyphs()
+        https://bugs.webkit.org/show_bug.cgi?id=215059
+
+        Reviewed by Darin Adler.
+
+        * wtf/PlatformUse.h: Rename CTFONTTRANSFORMGLYPHSWITHLANGUAGE to CTFONTSHAPEGLYPHS,
+        because that's the new function.
+
+2020-08-09  Ben Nham  <nham@apple.com>
+
+        Preload graphics drivers in Mac WebProcess
+        https://bugs.webkit.org/show_bug.cgi?id=215183
+
+        Reviewed by Darin Adler.
+
+        Enable GPU driver preheating in versions of the OS that might not have the drivers in the dyld
+        shared cache due to size restrictions.
+
+        * wtf/PlatformEnableCocoa.h:
+
+2020-08-09  Commit Queue  <commit-queue@webkit.org>
+
+        Unreviewed, reverting r263195, r263252, and r265394.
+        https://bugs.webkit.org/show_bug.cgi?id=215312
+
+        Revert all related GC Bitmap changes because some of perf is
+        not fully recovered
+
+        Reverted changesets:
+
+        "Replace JSC::FreeList linked list with a Bitmap."
+        https://bugs.webkit.org/show_bug.cgi?id=213071
+        https://trac.webkit.org/changeset/263195
+
+        "Unify Bitmap math loops in
+        MarkedBlock::Handle::specializedSweep()."
+        https://bugs.webkit.org/show_bug.cgi?id=213345
+        https://trac.webkit.org/changeset/263252
+
+        "[JSC] Disable ENABLE_BITMAP_FREELIST"
+        https://bugs.webkit.org/show_bug.cgi?id=215285
+        https://trac.webkit.org/changeset/265394
+
+2020-08-08  Joonghun Park  <jh718.park@samsung.com>
+
+        [WTF] Remove the build warning since r265344.
+        https://bugs.webkit.org/show_bug.cgi?id=215269
+
+        warning: parameter ‘integer’ set but not used [-Wunused-but-set-parameter]
+
+        * wtf/text/IntegerToStringConversion.h:
+        (WTF::lengthOfIntegerAsString):
+
+2020-08-07  John Wilander  <wilander@apple.com>
+
+        Experimental: Cap the expiry of persistent cookies set in 3rd-party CNAME cloaked HTTP responses
+        https://bugs.webkit.org/show_bug.cgi?id=215201
+        <rdar://problem/57454633>
+
+        Reviewed by Brent Fulgham. Also reviewed and commented on by Chris Dumez, Jiten Mehta, Sam Weinig, and Alex Christensen.
+
+        This change defines HAVE_CFNETWORK_CNAME_AND_COOKIE_TRANSFORM_SPI.
+
+        * wtf/PlatformHave.h:
+
+2020-08-07  Saam Barati  <sbarati@apple.com>
+
+        Use thread_switch instead of switch_pri to drop priority to zero for 1ms instead of 10
+        https://bugs.webkit.org/show_bug.cgi?id=215248
+
+        Reviewed by Yusuke Suzuki.
+
+        This seems to be a slight JetStream2 and Speedometer2 speedup. In the
+        range of 0%-0.75%, depending on device.
+
+        * wtf/posix/ThreadingPOSIX.cpp:
+        (WTF::Thread::yield):
+
+2020-08-07  Robin Morisset  <rmorisset@apple.com>
+
+        Fix inequality in newly added assertion
+        https://bugs.webkit.org/show_bug.cgi?id=215272
+
+        Reviewed by Alexey Proskuryakov.
+
+        No new tests, as it was caught by our testing infrastructure (not sure why it only got caught after landing).
+
+        * wtf/IndexSparseSet.h:
+        (WTF::OverflowHandler>::validate):
+
+2020-08-07  Robin Morisset  <rmorisset@apple.com>
+
+        IndexSparseSet::sort() should update m_map
+        https://bugs.webkit.org/show_bug.cgi?id=215100
+
+        Reviewed by Yusuke Suzuki and Mark Lam.
+
+        IndexSparseSet is made of two fields: m_values and m_map, and the two must be kept in sync.
+        But its sort routine currently only sorts m_values.
+        This might be related to a random crash that seems to occasionally occur in the vicinity of this code in the wild (rdar://problem/64594569)
+
+        I added a validation routine, that I run in the tests that I added to TestWTF.
+        I verified, and without the fix, the validation routine fails after the sorting.
+
+        I also fixed remove() which was wrong on non-trivial types (thanks to Mark for catching this other bug).
+
+        * wtf/IndexSparseSet.h:
+        (WTF::OverflowHandler>::remove):
+        (WTF::OverflowHandler>::sort):
+        (WTF::OverflowHandler>::validate):
+
+2020-08-07  Youenn Fablet  <youenn@apple.com>
+
+        Introduce a Vector::isolatedCopy() &&
+        https://bugs.webkit.org/show_bug.cgi?id=215160
+
+        Reviewed by Alex Christensen.
+
+        By introducing an isolatedCopy() &&, we remove the need to allocate a vector buffer.
+        This can make a Vector<String>::isolatedCopy() allocate no memory at all in cases like RegistrationDatabase::schedulePushChanges.
+
+        * wtf/Vector.h:
+        (WTF::Malloc>::isolatedCopy const):
+        (WTF::Malloc>::isolatedCopy):
+
+2020-08-06  David Kilzer  <ddkilzer@apple.com>
+
+        WTF::makeString() should handle enum values
+        <https://webkit.org/b/214906>
+
+        Reviewed by Sam Weinig.
+
+        * wtf/text/IntegerToStringConversion.h:
+        (WTF::numberToStringSigned):
+        - Drive-by fix to change std::make_unsigned<>::type to
+          std::make_unsigned_t<>.
+        (WTF::writeNumberToBufferImpl): Delete.
+        (WTF::writeIntegerToBufferImpl):
+        - Rename from WTF::writeNumberToBufferImpl().
+        (WTF::writeNumberToBufferSigned): Delete.
+        (WTF::writeNumberToBufferUnsigned): Delete.
+        (WTF::writeIntegerToBuffer):
+        - Replace WTF::writeNumberToBufferSigned() and
+          WTF::writeNumberToBufferUnsigned() with a single function that
+          uses constexpr checks to let the compiler eliminate code.  Had
+          to use if/else if/else construct to help the compiler
+          eliminate unused cases.
+        (WTF::lengthOfNumberAsStringImpl): Delete.
+        (WTF::lengthOfIntegerAsStringImpl):
+        - Rename from WTF::lengthOfNumberAsStringImpl().
+        (WTF::lengthOfNumberAsStringSigned): Delete.
+        (WTF::lengthOfNumberAsStringUnsigned): Delete.
+        (WTF::lengthOfIntegerAsString):
+        - Replace WTF::lengthOfNumberAsStringSigned() and
+          WTF::lengthOfNumberAsStringUnsigned() with a single function
+          that uses constexpr checks to let the compiler eliminate code.
+          Had to use if/else if/else construct to help the compiler
+          eliminate unused cases.
+
+        * wtf/text/StringConcatenateNumbers.h:
+        (WTF::StringTypeAdapter<SignedInt, ...>): Deleted.
+        (WTF::StringTypeAdapter<UnignedInt, ...>): Deleted.
+        (WTF::StringTypeAdapter<Integer, ...>):
+        - Combine signed/unsigned templated classes into a single class
+          now that WTF::lengthOfIntegerAsString() and
+          WTF::writeIntegerToBuffer() are templated.
+        (WTF::StringTypeAdapter<Enum, ...>):
+        - Add support for enum types to WTF::makeString().  This also
+          takes advantage of templated WTF::lengthOfIntegerAsString()
+          and WTF::writeIntegerToBuffer() functions since enum types may
+          be either signed or unsigned.
+
+2020-08-05  Tim Horton  <timothy_horton@apple.com>
+
+        Remove all references to non-existent 10.16
+        https://bugs.webkit.org/show_bug.cgi?id=215202
+
+        Reviewed by Wenson Hsieh.
+
+        * Configurations/Base.xcconfig:
+        * Configurations/DebugRelease.xcconfig:
+        * wtf/PlatformEnableCocoa.h:
+        * wtf/PlatformHave.h:
+        * wtf/PlatformUse.h:
+
+2020-08-04  Yusuke Suzuki  <ysuzuki@apple.com>
+
+        [JSC] Use LazyNeverDestroyed & std::call_once for complex singletons
+        https://bugs.webkit.org/show_bug.cgi?id=215153
+        <rdar://problem/65718983>
+
+        Reviewed by Mark Lam.
+
+        Add lock's bits in crash information to investigate if this speculative fix does not work.
+
+        * wtf/LockAlgorithmInlines.h:
+        (WTF::Hooks>::lockSlow):
+        (WTF::Hooks>::unlockSlow):
+
+2020-08-04  Keith Miller  <keith_miller@apple.com>
+
+        CheckpointSideState shoud play nicely with StackOverflowException unwinding.
+        https://bugs.webkit.org/show_bug.cgi?id=215114
+
+        Reviewed by Saam Barati.
+
+        Add a helper so we can have soft stack bounds.
+
+        * wtf/StackBounds.h:
+        (WTF::StackBounds::withSoftOrigin const):
+
+2020-08-04  Fujii Hironori  <Hironori.Fujii@sony.com>
+
+        [MSVC] wtf/Optional.h: error C2280: 'WTF::constexpr_storage_t<T> &WTF::constexpr_storage_t<T>::operator =(const WTF::constexpr_storage_t<T> &)': attempting to reference a deleted function
+        https://bugs.webkit.org/show_bug.cgi?id=215003
+
+        Reviewed by Yusuke Suzuki.
+
+        Microsoft reported the upcoming MSVC can't compile
+        Optional<std::pair<JSC::SamplingProfiler::StackFrame::CodeLocation,JSC::CodeBlock *>>.
+
+        > wtf/Optional.h(419,39): error C2280: 'WTF::constexpr_storage_t<T> &WTF::constexpr_storage_t<T>::operator =(const WTF::constexpr_storage_t<T> &)': attempting to reference a deleted function
+
+        They suggests using std::is_trivially_copy_assignable_v in
+        Optional ctor instead of std::is_trivially_copyable_v.
+
+        * wtf/Optional.h:
+        (WTF::Optional::Optional): Replaced std::is_trivially_copyable_v with std::is_trivially_copy_assignable_v.
+
+2020-08-04  Alex Christensen  <achristensen@webkit.org>
+
+        about: scheme URL constants should be backed by StaticStringImpl
+        https://bugs.webkit.org/show_bug.cgi?id=215113
+
+        Reviewed by Darin Adler.
+
+        * wtf/URL.cpp:
+        (WTF::aboutBlankURL):
+        (WTF::aboutSrcDocURL):
+
+2020-08-03  Wenson Hsieh  <wenson_hsieh@apple.com>
+
+        Remove the ENABLE_DATA_INTERACTION feature flag
+        https://bugs.webkit.org/show_bug.cgi?id=215091
+
+        Reviewed by Megan Gardner.
+
+        * wtf/PlatformEnable.h:
+        * wtf/PlatformEnableCocoa.h:
 
 2020-08-01  Commit Queue  <commit-queue@webkit.org>
 

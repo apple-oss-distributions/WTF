@@ -156,6 +156,7 @@ set(WTF_PUBLIC_HEADERS
     OSRandomSource.h
     ObjCRuntimeExtras.h
     ObjectIdentifier.h
+    Observer.h
     OptionSet.h
     OptionSetHash.h
     Optional.h
@@ -475,6 +476,7 @@ set(WTF_SOURCES
     text/Base64.cpp
     text/CString.cpp
     text/ExternalStringImpl.cpp
+    text/LineBreakIteratorPoolICU.cpp
     text/LineEnding.cpp
     text/StringBuffer.cpp
     text/StringBuilder.cpp
