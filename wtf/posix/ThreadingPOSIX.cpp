@@ -63,6 +63,15 @@
 
 #endif
 
+#if OS(DARWIN)
+#include <mach/mach_traps.h>
+#include <mach/thread_switch.h>
+#endif
+
+#if OS(LINUX)
+#include <sys/syscall.h>
+#endif
+
 namespace WTF {
 
 static Lock globalSuspendLock;
@@ -182,6 +191,13 @@ void Thread::initializePlatformThreading()
 #endif
 }
 
+#if OS(LINUX)
+ThreadIdentifier Thread::currentID()
+{
+    return static_cast<ThreadIdentifier>(syscall(SYS_gettid));
+}
+#endif
+
 void Thread::initializeCurrentThreadEvenIfNonWTFCreated()
 {
 #if !OS(DARWIN)
@@ -198,13 +214,33 @@ static void* wtfThreadEntryPoint(void* context)
     return nullptr;
 }
 
-bool Thread::establishHandle(NewThreadContext* context, Optional<size_t> stackSize)
+#if HAVE(QOS_CLASSES)
+dispatch_qos_class_t Thread::dispatchQOSClass(QOS qos)
+{
+    switch (qos) {
+    case QOS::UserInteractive:
+        return adjustedQOSClass(QOS_CLASS_USER_INTERACTIVE);
+    case QOS::UserInitiated:
+        return adjustedQOSClass(QOS_CLASS_USER_INITIATED);
+    case QOS::Default:
+        return adjustedQOSClass(QOS_CLASS_DEFAULT);
+    case QOS::Utility:
+        return adjustedQOSClass(QOS_CLASS_UTILITY);
+    case QOS::Background:
+        return adjustedQOSClass(QOS_CLASS_BACKGROUND);
+    }
+}
+#endif
+
+bool Thread::establishHandle(NewThreadContext* context, Optional<size_t> stackSize, QOS qos)
 {
     pthread_t threadHandle;
     pthread_attr_t attr;
     pthread_attr_init(&attr);
 #if HAVE(QOS_CLASSES)
-    pthread_attr_set_qos_class_np(&attr, adjustedQOSClass(QOS_CLASS_USER_INITIATED), 0);
+    pthread_attr_set_qos_class_np(&attr, dispatchQOSClass(qos), 0);
+#else
+    UNUSED_PARAM(qos);
 #endif
     if (stackSize)
         pthread_attr_setstacksize(&attr, stackSize.value());
@@ -555,7 +591,12 @@ void ThreadCondition::broadcast()
 
 void Thread::yield()
 {
+#if OS(DARWIN)
+    constexpr mach_msg_timeout_t timeoutInMS = 1;
+    thread_switch(MACH_PORT_NULL, SWITCH_OPTION_DEPRESS, timeoutInMS);
+#else
     sched_yield();
+#endif
 }
 
 } // namespace WTF

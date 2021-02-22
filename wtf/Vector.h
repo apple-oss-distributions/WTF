@@ -769,7 +769,8 @@ public:
 
     void clear() { shrinkCapacity(0); }
 
-    template<typename U = T> Vector<U> isolatedCopy() const;
+    template<typename U = T> Vector<U> isolatedCopy() const &;
+    template<typename U = T> Vector<U> isolatedCopy() &&;
 
     ALWAYS_INLINE void append(ValueType&& value) { append<ValueType>(std::forward<ValueType>(value)); }
     template<typename U> ALWAYS_INLINE void append(U&& u) { append<FailureAction::Crash, U>(std::forward<U>(u)); }
@@ -1601,7 +1602,7 @@ template<typename T> struct ValueCheck<Vector<T>> {
 
 template<typename T, size_t inlineCapacity, typename OverflowHandler, size_t minCapacity, typename Malloc>
 template<typename U>
-inline Vector<U> Vector<T, inlineCapacity, OverflowHandler, minCapacity, Malloc>::isolatedCopy() const
+inline Vector<U> Vector<T, inlineCapacity, OverflowHandler, minCapacity, Malloc>::isolatedCopy() const &
 {
     Vector<U> copy;
     copy.reserveInitialCapacity(size());
@@ -1609,7 +1610,16 @@ inline Vector<U> Vector<T, inlineCapacity, OverflowHandler, minCapacity, Malloc>
         copy.uncheckedAppend(element.isolatedCopy());
     return copy;
 }
-    
+
+template<typename T, size_t inlineCapacity, typename OverflowHandler, size_t minCapacity, typename Malloc>
+template<typename U>
+inline Vector<U> Vector<T, inlineCapacity, OverflowHandler, minCapacity, Malloc>::isolatedCopy() &&
+{
+    for (auto iterator = begin(), iteratorEnd = end(); iterator < iteratorEnd; ++iterator)
+        *iterator = WTFMove(*iterator).isolatedCopy();
+    return WTFMove(*this);
+}
+
 template<typename VectorType, typename Func>
 size_t removeRepeatedElements(VectorType& vector, const Func& func)
 {
@@ -1670,6 +1680,71 @@ Vector<typename Mapper<MapFunction, SourceType>::DestinationItemType> map(Source
     return Mapper<MapFunction, SourceType>::map(std::forward<SourceType>(source), std::forward<MapFunction>(mapFunction));
 }
 
+template<typename MapFunctionReturnType>
+struct CompactMapTraits {
+    static bool hasValue(const MapFunctionReturnType&);
+    template<typename ItemType>
+    static ItemType extractValue(MapFunctionReturnType&&);
+};
+
+template<typename T>
+struct CompactMapTraits<Optional<T>> {
+    using ItemType = T;
+    static bool hasValue(const Optional<T>& returnValue) { return !!returnValue; }
+    static ItemType extractValue(Optional<T>&& returnValue) { return WTFMove(*returnValue); }
+};
+
+template<typename T>
+struct CompactMapTraits<RefPtr<T>> {
+    using ItemType = Ref<T>;
+    static bool hasValue(const RefPtr<T>& returnValue) { return !!returnValue; }
+    static ItemType extractValue(RefPtr<T>&& returnValue) { return returnValue.releaseNonNull(); }
+};
+
+template<typename MapFunction, typename SourceType, typename Enable = void>
+struct CompactMapper {
+    using SourceItemType = typename CollectionInspector<SourceType>::SourceItemType;
+    using ResultItemType = typename std::result_of<MapFunction(SourceItemType&)>::type;
+    using DestinationItemType = typename CompactMapTraits<ResultItemType>::ItemType;
+
+    static Vector<DestinationItemType> compactMap(SourceType source, const MapFunction& mapFunction)
+    {
+        Vector<DestinationItemType> result;
+        for (auto& item : source) {
+            auto itemResult = mapFunction(item);
+            if (CompactMapTraits<ResultItemType>::hasValue(itemResult))
+                result.append(CompactMapTraits<ResultItemType>::extractValue(WTFMove(itemResult)));
+        }
+        result.shrinkToFit();
+        return result;
+    }
+};
+
+template<typename MapFunction, typename SourceType>
+struct CompactMapper<MapFunction, SourceType, typename std::enable_if<std::is_rvalue_reference<SourceType&&>::value>::type> {
+    using SourceItemType = typename CollectionInspector<SourceType>::SourceItemType;
+    using ResultItemType = typename std::result_of<MapFunction(SourceItemType&&)>::type;
+    using DestinationItemType = typename CompactMapTraits<ResultItemType>::ItemType;
+
+    static Vector<DestinationItemType> compactMap(SourceType source, const MapFunction& mapFunction)
+    {
+        Vector<DestinationItemType> result;
+        for (auto& item : source) {
+            auto itemResult = mapFunction(WTFMove(item));
+            if (CompactMapTraits<ResultItemType>::hasValue(itemResult))
+                result.append(CompactMapTraits<ResultItemType>::extractValue(WTFMove(itemResult)));
+        }
+        result.shrinkToFit();
+        return result;
+    }
+};
+
+template<typename MapFunction, typename SourceType>
+Vector<typename CompactMapper<MapFunction, SourceType>::DestinationItemType> compactMap(SourceType&& source, MapFunction&& mapFunction)
+{
+    return CompactMapper<MapFunction, SourceType>::compactMap(std::forward<SourceType>(source), std::forward<MapFunction>(mapFunction));
+}
+
 template<typename DestinationVector, typename Collection>
 inline auto copyToVectorSpecialization(const Collection& collection) -> DestinationVector
 {
@@ -1705,4 +1780,5 @@ using WTF::Vector;
 using WTF::copyToVector;
 using WTF::copyToVectorOf;
 using WTF::copyToVectorSpecialization;
+using WTF::compactMap;
 using WTF::removeRepeatedElements;

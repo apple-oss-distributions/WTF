@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2018 Apple Inc. All rights reserved.
+ * Copyright (C) 2020 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -23,29 +23,19 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#pragma once
-
-#include <cstdint>
-#include <utility>
+#include "config.h"
+#include <wtf/text/LineBreakIteratorPoolICU.h>
 
 namespace WTF {
-    
-template<typename T>
-struct DumbPtrTraits {
-    template<typename U> using RebindTraits = DumbPtrTraits<U>;
 
-    using StorageType = T*;
-
-    template<typename U>
-    static ALWAYS_INLINE T* exchange(StorageType& ptr, U&& newValue) { return std::exchange(ptr, newValue); }
-
-    static ALWAYS_INLINE void swap(StorageType& a, StorageType& b) { std::swap(a, b); }
-    static ALWAYS_INLINE T* unwrap(const StorageType& ptr) { return ptr; }
-
-    static StorageType hashTableDeletedValue() { return bitwise_cast<StorageType>(static_cast<uintptr_t>(-1)); }
-    static ALWAYS_INLINE bool isHashTableDeletedValue(const StorageType& ptr) { return ptr == hashTableDeletedValue(); }
-};
+LineBreakIteratorPool& LineBreakIteratorPool::sharedPool()
+{
+    static LazyNeverDestroyed<WTF::ThreadSpecific<LineBreakIteratorPool>> pool;
+    static std::once_flag onceKey;
+    std::call_once(onceKey, [&] {
+        pool.construct();
+    });
+    return *pool.get();
+}
 
 } // namespace WTF
-
-using WTF::DumbPtrTraits;
